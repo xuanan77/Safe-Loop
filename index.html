@@ -1,4 +1,17 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="theme-color" content="#0b1220">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SafeLoop">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>*,*::before,*::after{box-sizing:border-box}html,body{margin:0}</style>
 <title>SafeLoop Edge Safety</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -526,6 +539,20 @@ html,body{height:100%;overflow:hidden;scroll-behavior:auto}
 .bdg{display:inline-block;font-family:var(--f-mono);font-size:10.5px;padding:1px 7px;border-radius:999px;border:1px solid var(--line2);color:var(--muted)}
 .bdg.auto{color:var(--safe);border-color:var(--safe)}.bdg.est,.bdg.semi{color:var(--warn);border-color:var(--warn)}.bdg.assumed,.bdg.manual{color:var(--faint)}
 @media(max-width:820px){.msk-top{grid-template-columns:minmax(0,1fr)}.msk-ex .rw{grid-template-columns:minmax(0,1fr) auto}.msk-ex .rw .bar{grid-column:1/-1}.msk-big{font-size:44px}}
+.msk-man input[type=text],.msk-man select{width:100%;background:var(--panel2);border:1px solid var(--line2);border-radius:6px;padding:7px 9px;font:inherit;font-size:13px;color:var(--fg)}
+.amchk{grid-template-columns:repeat(auto-fit,minmax(112px,1fr))!important}
+.amlive{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:8px;margin-bottom:10px}
+.amlive div{border:1px solid var(--line);border-radius:8px;padding:6px 9px;background:var(--panel2);min-width:0}
+.amlive div b{display:block;font-size:11px;color:var(--muted);font-weight:600}.amlive div span{font-family:var(--f-display);font-weight:700;font-size:15px}
+.amlive div.ok{border-color:var(--safe)}.amlive div.bad{border-color:var(--danger)}.amlive div.warn{border-color:var(--warn)}
+.amesc{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:6px 0 10px}
+.amesc div{border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12px;color:var(--muted);text-align:center;background:var(--panel2)}
+.amesc div.on{color:#fff;font-weight:700}.amesc div.on.l0{background:var(--safe);border-color:var(--safe)}.amesc div.on.l1{background:#2f8fd0;border-color:#2f8fd0}.amesc div.on.l2{background:var(--warn);border-color:var(--warn);color:#1b1500}.amesc div.on.l3{background:var(--danger);border-color:var(--danger)}
+.amact{border:1.5px solid var(--danger);border-radius:10px;padding:10px 12px;margin:8px 0;background:color-mix(in srgb,var(--danger) 8%,var(--panel))}
+.amact.w{border-color:var(--warn);background:color-mix(in srgb,var(--warn) 10%,var(--panel))}
+.amact input[type=text]{width:100%;margin:6px 0;background:var(--panel2);border:1px solid var(--line2);border-radius:6px;padding:7px 9px;font:inherit;font-size:13px;color:var(--fg)}
+.amh{margin:14px 0 4px;font-size:13px;color:var(--muted)}
+.amstats{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px}.amstats b{font-family:var(--f-display)}
 .stat.fail{background:var(--danger);color:#fff}
 </style>
 
@@ -724,6 +751,7 @@ html,body{height:100%;overflow:hidden;scroll-behavior:auto}
       <div><h3 id="amHead"></h3><p id="amSub"></p></div>
       <div class="aim-modes">
         <button data-am="checkin" aria-pressed="true"><span data-i="am_m1"></span><small data-i="am_m1s"></small></button>
+        <button data-am="watch" aria-pressed="false"><span data-i="am_m3"></span><small data-i="am_m3s"></small></button>
         <button data-am="site" aria-pressed="false"><span data-i="am_m2"></span><small data-i="am_m2s"></small></button>
       </div>
     </div>
@@ -749,7 +777,25 @@ html,body{height:100%;overflow:hidden;scroll-behavior:auto}
           <details style="margin-top:10px"><summary data-i="am_set" style="cursor:pointer;font-size:13px;color:var(--muted)"></summary>
             <div class="amrow"><label for="amDwell" data-i="am_dwell"></label><select id="amDwell"><option value="3">3 s</option><option value="4" selected>4 s</option><option value="6">6 s</option></select></div>
             <div class="amrow"><label><input type="checkbox" id="amNeedMask" checked> <span data-i="am_needmask"></span></label></div>
+            <div class="amrow"><label><input type="checkbox" id="polHelmet" checked> <span data-i="am_helmet"></span></label><label><input type="checkbox" id="polVest" checked> <span data-i="am_vest"></span></label><label><input type="checkbox" id="polEyes" checked> <span data-i="am_eyes"></span></label><label><input type="checkbox" id="polAttn" checked> <span data-i="am_attn"></span></label></div>
+            <div class="amrow"><label for="polClosed" data-i="am_p_closed"></label><select id="polClosed"><option value="2" selected>2 s</option><option value="3">3 s</option><option value="4">4 s</option></select><label for="polPerclos" data-i="am_p_perclos"></label><select id="polPerclos"><option value="0.1">10%</option><option value="0.15" selected>15%</option><option value="0.2">20%</option></select></div>
+            <div class="amrow"><label for="polDown" data-i="am_p_down"></label><select id="polDown"><option value="3" selected>3 s</option><option value="5">5 s</option><option value="8">8 s</option></select><label for="polAway" data-i="am_p_away"></label><select id="polAway"><option value="5" selected>5 s</option><option value="8">8 s</option><option value="12">12 s</option></select><label for="polAbsent" data-i="am_p_absent"></label><select id="polAbsent"><option value="5" selected>5 s</option><option value="10">10 s</option><option value="20">20 s</option></select></div>
+            <p class="amnote" data-i="am_p_note"></p>
           </details></div></div>
+      </div>
+    </div>
+    <div class="panel" id="amSup" style="margin-top:14px">
+      <div class="ph"><span data-i="am_sup"></span><span class="s" id="amPolTag"></span></div>
+      <div class="pb">
+        <div class="amlive" id="amLive"></div>
+        <div class="amesc" id="amEsc"></div>
+        <div id="amAct"></div>
+        <div class="amrow" id="amScnRow" hidden><label for="amScn" data-i="am_scn"></label><select id="amScn"><option value="normal" data-i="am_sc_normal"></option><option value="drowsy" data-i="am_sc_drowsy"></option><option value="nod" data-i="am_sc_nod"></option><option value="helmet" data-i="am_sc_helmet"></option><option value="absent" data-i="am_sc_absent"></option><option value="mixed" data-i="am_sc_mixed"></option></select></div>
+        <div class="amrow"><button class="btn sm" id="amCalH"></button><button class="btn sm" id="amCalV"></button><button class="btn sm" id="amCalN"></button><button class="btn sm" id="amCalR"></button></div>
+        <p class="amnote" id="amCalM" style="margin-top:6px"></p>
+        <h4 class="amh" data-i="am_evlog"></h4><div class="amrec" id="amEv"></div>
+        <h4 class="amh" data-i="am_stats"></h4><div class="amstats" id="amStats"></div>
+        <p class="amnote" data-i="am_sup_note"></p>
       </div>
     </div>
     <p class="amnote"><b data-i="am_how_h"></b> <span data-ih="am_how"></span></p>
@@ -765,10 +811,18 @@ html,body{height:100%;overflow:hidden;scroll-behavior:auto}
     </div>
     <div class="sp-bar">
       <span class="sp-stat" id="spStat"></span>
-      <span class="sp-seg" role="group"><button class="on" data-sp="mode:browser" data-i="sp_m_browser"></button><button disabled id="spRelay" data-i="sp_m_relay"></button></span>
+      <span class="sp-seg" role="group"><button class="on" data-sp="mode:browser" data-i="sp_m_browser"></button><button id="spRelay" data-sp="mode:relay" data-i="sp_m_relay"></button></span>
       <span class="sp-seg" role="group" id="spLaySeg"><button class="on" data-sp="lay:h" data-i="sp_lay_h"></button><button data-sp="lay:v" data-i="sp_lay_v"></button></span>
       <span class="sp-seg" role="group" id="spWidSeg"><button data-sp="wid:narrow" data-i="sp_w_n"></button><button class="on" data-sp="wid:half" data-i="sp_w_h"></button><button data-sp="wid:wide" data-i="sp_w_w"></button></span>
     </div>
+    <div class="panel" id="spNet" hidden style="margin-bottom:12px"><div class="pb">
+      <div class="msk-man">
+        <label><span data-i="sp_net_role"></span><select id="spRole"><option value="site" data-i="sp_role_site"></option><option value="control" data-i="sp_role_ctl"></option></select></label>
+        <label><span data-i="sp_net_room"></span><input id="spRoom" type="text" maxlength="32" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. demo-4k7x2m"></label>
+        <label style="grid-column:1/-1"><span data-i="sp_net_url"></span><input id="spUrl" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="wss://your-relay.onrender.com"></label>
+      </div>
+      <p class="note" id="spNetSt" style="margin:8px 0 0"></p><p class="note" data-i="sp_net_hint" style="margin:4px 0 0"></p>
+    </div></div>
     <div class="sp-grid" id="spGrid">
       <div class="sp-pane" id="spL">
         <div class="sp-ph"><span class="pill info" data-i="sp_l_t"></span><span style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><select id="spSrc" aria-label="source"></select><button class="btn go" id="spStart"></button></span></div>
@@ -784,7 +838,7 @@ html,body{height:100%;overflow:hidden;scroll-behavior:auto}
         <div class="sp-read" id="spRead"></div>
         <div class="ph" style="padding:0;margin-top:6px"><span data-i="sp_ppe"></span><span class="s" data-i="sp_ppe_s"></span></div>
         <div class="sp-ppe" id="spPpe"></div>
-        <div id="spAlert"></div>
+        <div id="spAlert"></div><div id="spCmdBox" hidden style="margin-top:8px"><button class="btn danger" id="spCmd"></button><p class="note" id="spCmdN" style="margin:6px 0 0"></p></div>
         <details style="margin-top:10px"><summary data-i="sp_pkt"></summary><pre class="mono" id="spPkt" style="white-space:pre-wrap;word-break:break-all;font-size:11px;max-height:180px;overflow:auto"></pre></details>
       </div>
     </div>
@@ -1999,11 +2053,130 @@ if (typeof module !== 'undefined' && module.exports) module.exports = API; else 
 
 </script>
 <script>
+/* SafeLoop supervision engine: check-in decision, head-pose / eye / mouth metrics from Face Mesh landmarks,
+   colour-based PPE heuristics (NOT a trained detector), continuous monitoring with PERCLOS and an escalation ladder.
+   Screening aid on a webcam; not a certified safety device. */
+(function (root) {
+'use strict';
+const cl = (v, a, b) => Math.max(a, Math.min(b, v)), deg = r => r * 180 / Math.PI;
+const POL = { helmet: true, vest: true, mask: true, eyes: true, attn: true, dwell: 4, closed: 2, perclos: 0.15, pitch: 25, yaw: 35, down: 3, away: 5, yawn: 1.5, absent: 5, helmetOff: 3 };
+
+/* ---- landmark metrics (Face Mesh, normalised coords; z has the same scale as x) */
+function headPose(lm, neutral) {
+  neutral = neutral || { pitch: 0, yaw: 0 };
+  const L = lm[234], R = lm[454], N = lm[1], F = lm[10], C = lm[152];
+  const W = Math.hypot(R.x - L.x, R.y - L.y) || 1e-6, midx = (L.x + R.x) / 2;
+  const yaw = deg(Math.asin(cl((N.x - midx) / (0.5 * W * 0.75), -1, 1))) - neutral.yaw;
+  const dy = (C.y - F.y) || 1e-6, dz = (C.z || 0) - (F.z || 0);
+  const pitch = deg(Math.atan2(dz, dy)) - neutral.pitch;
+  const roll = deg(Math.atan2(lm[263].y - lm[33].y, lm[263].x - lm[33].x));
+  return { yaw, pitch, roll };
+}
+function mar(lm) { const d = (a, b) => Math.hypot(lm[a].x - lm[b].x, lm[a].y - lm[b].y); return d(13, 14) / (d(78, 308) || 1e-6); }
+/* regions (normalised image coords) derived from the face box */
+function regions(lm) {
+  const F = lm[10], C = lm[152], L = lm[234], R = lm[454], H = Math.abs(C.y - F.y) || 1e-6, W = Math.abs(R.x - L.x) || 1e-6, cx = (L.x + R.x) / 2;
+  return { helmet: { x0: cx - W * .6, x1: cx + W * .6, y0: F.y - H * .75, y1: F.y - H * .05 }, vest: { x0: cx - W * 1.1, x1: cx + W * 1.1, y0: C.y + H * .55, y1: C.y + H * 1.9 } };
+}
+/* ---- colour heuristics */
+function rgb2hsv(r, g, b) { r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; let h = 0; if (d) { h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; if (h < 0) h += 360; } return [h, mx ? d / mx : 0, mx]; }
+const inH = (h, a, b) => h >= a && h <= b;
+function helmetDefault(h, s, v) { return v >= .35 && ((inH(h, 40, 68) && s >= .55) || (inH(h, 14, 40) && s >= .7) || ((h >= 352 || h <= 8) && s >= .65) || (inH(h, 195, 250) && s >= .5) || (inH(h, 90, 150) && s >= .5)); }
+function vestDefault(h, s, v) { return v >= .55 && ((inH(h, 52, 95) && s >= .5) || (inH(h, 10, 38) && s >= .7)); }
+function matchCal(h, s, v, c) { let dh = Math.abs(h - c.h); dh = Math.min(dh, 360 - dh); return (c.s < .15 ? dh <= 360 : dh <= 20) && Math.abs(s - c.s) <= .25 && Math.abs(v - c.v) <= .25; }
+/* img = {data: Uint8ClampedArray RGBA, w, h}; rect normalised. Returns fraction of matching pixels and whether the rect lies inside the frame */
+function regionScore(img, rect, kind, cal) {
+  const x0 = Math.floor(rect.x0 * img.w), x1 = Math.ceil(rect.x1 * img.w), y0 = Math.floor(rect.y0 * img.h), y1 = Math.ceil(rect.y1 * img.h);
+  const area = (x1 - x0) * (y1 - y0), cx0 = Math.max(0, x0), cx1 = Math.min(img.w, x1), cy0 = Math.max(0, y0), cy1 = Math.min(img.h, y1);
+  const vis = area > 0 ? (Math.max(0, cx1 - cx0) * Math.max(0, cy1 - cy0)) / area : 0; if (vis < .6) return { inView: false, frac: 0, vis };
+  let n = 0, m = 0, sh = 0, ss = 0, sv = 0, sx = 0, sy = 0; const f = kind === 'vest' ? vestDefault : helmetDefault;
+  for (let y = cy0; y < cy1; y++) for (let x = cx0; x < cx1; x++) { const i = (y * img.w + x) * 4, hsv = rgb2hsv(img.data[i], img.data[i + 1], img.data[i + 2]); n++; sx += Math.cos(hsv[0] * Math.PI / 180); sy += Math.sin(hsv[0] * Math.PI / 180); ss += hsv[1]; sv += hsv[2]; if (cal ? matchCal(hsv[0], hsv[1], hsv[2], cal) : f(hsv[0], hsv[1], hsv[2])) m++; }
+  let hm = deg(Math.atan2(sy, sx)); if (hm < 0) hm += 360;
+  return { inView: true, frac: n ? m / n : 0, vis, mean: { h: hm, s: n ? ss / n : 0, v: n ? sv / n : 0 } };
+}
+/* ---- check-in decision. c = counters over the observation window; need = policy */
+function decide(c, pol) {
+  pol = Object.assign({}, POL, pol || {}); const face = c.n > 0 && c.fc / c.n >= .6, r = (k, d) => (c.fc > 0 ? c[k] / c.fc : 0), ok = { face };
+  ok.eyes = face && r('op') >= .6; ok.attn = face && r('att') >= .6;
+  ok.helmet = face && c.hIn / Math.max(1, c.fc) >= .6 && c.hel / Math.max(1, c.hIn) >= .6; ok.vest = face && c.vIn / Math.max(1, c.fc) >= .6 && c.ves / Math.max(1, c.vIn) >= .6;
+  const view = { helmet: face ? c.hIn / Math.max(1, c.fc) >= .6 : false, vest: face ? c.vIn / Math.max(1, c.fc) >= .6 : false };
+  const bad = []; if (!face) bad.push('face'); else for (const k of ['helmet', 'vest', 'eyes', 'attn']) if (pol[k] && !ok[k]) bad.push(k === 'helmet' && !view.helmet ? 'helmet_view' : k === 'vest' && !view.vest ? 'vest_view' : k);
+  return { pass: bad.length === 0, bad, ok, view, face };
+}
+/* ---- continuous monitor */
+const SEV = { closed_long: 3, drowsy: 2, head_down: 2, away: 1, yawn: 1, absent: 3, helmet_off: 3 };
+function createMonitor(cfg) {
+  cfg = Object.assign({}, POL, cfg || {}); const S = { win: [], cond: {}, events: [], t: 0, perclos: null, closedFor: 0 };
+  const track = (k, on, t, need, extra) => { const c = S.cond[k] || (S.cond[k] = { since: null, fired: false });
+    if (on) { if (c.since == null) c.since = t; if (!c.fired && t - c.since >= need) { c.fired = true; S.events.push({ t, type: k, sev: SEV[k], dur: t - c.since, extra }); return true; } } else { c.since = null; c.fired = false; } return false; };
+  function push(o) {
+    const t = o.t; S.t = t; const closed = !!o.face && o.ear != null && o.ear < 0.2; S.win.push({ t, closed, face: !!o.face }); while (S.win.length && t - S.win[0].t > 60) S.win.shift();
+    const span = S.win.length > 1 ? t - S.win[0].t : 0, fr = S.win.filter(x => x.face); S.perclos = span >= 30 && fr.length ? fr.filter(x => x.closed).length / fr.length : null;
+    const cl0 = S.cond.closed_long; S.closedFor = closed ? (cl0 && cl0.since != null ? t - cl0.since : 0) : 0;
+    const fired = [];
+    if (track('closed_long', closed, t, cfg.closed)) fired.push('closed_long');
+    if (track('drowsy', S.perclos != null && S.perclos >= cfg.perclos, t, 0.01)) fired.push('drowsy');
+    if (track('head_down', !!o.face && o.pitch != null && o.pitch >= cfg.pitch, t, cfg.down)) fired.push('head_down');
+    if (track('away', !!o.face && o.yaw != null && Math.abs(o.yaw) >= cfg.yaw, t, cfg.away)) fired.push('away');
+    if (track('yawn', !!o.face && o.mar != null && o.mar >= 0.6, t, cfg.yawn)) fired.push('yawn');
+    if (track('absent', !o.face, t, cfg.absent)) fired.push('absent');
+    if (cfg.helmet && track('helmet_off', !!o.face && o.helmet === false, t, cfg.helmetOff)) fired.push('helmet_off');
+    return fired;
+  }
+  /* escalation: 0 normal, 1 reminder, 2 warning, 3 stop-work request (a person decides; nothing is called automatically) */
+  function level() {
+    const t = S.t, recent = S.events.filter(e => t - e.t <= 300), score = recent.reduce((a, e) => a + e.sev, 0), active = Object.entries(S.cond).filter(([k, c]) => c.fired && c.since != null).map(([k]) => k);
+    const crit = active.some(k => SEV[k] >= 3), longClosed = S.cond.closed_long && S.cond.closed_long.fired && S.closedFor >= cfg.closed * 2;
+    if (score >= 6 || longClosed || (crit && score >= 4)) return 3; if (crit || score >= 3) return 2; if (score >= 1 || active.length) return 1; return 0;
+  }
+  return { push, level, state: S, cfg };
+}
+/* ---- tests */
+function suite() {
+  const S = [], add = (id, name, expect, run) => S.push({ id, name, expect, run }), o3 = (zh, en, ko) => ({ zh, en, ko });
+  const lmFace = (yawDeg, pitchDeg) => { const lm = []; for (let i = 0; i < 468; i++) lm.push({ x: .5, y: .5, z: 0 }); const W = .2, Hh = .26, cx = .5, cy = .5;
+    lm[234] = { x: cx - W / 2, y: cy, z: 0 }; lm[454] = { x: cx + W / 2, y: cy, z: 0 }; lm[10] = { x: cx, y: cy - Hh / 2, z: 0 }; lm[152] = { x: cx, y: cy + Hh / 2, z: Hh * Math.tan(pitchDeg * Math.PI / 180) }; lm[1] = { x: cx + Math.sin(yawDeg * Math.PI / 180) * W / 2 * .75, y: cy, z: 0 };
+    lm[33] = { x: cx - .06, y: cy - .03, z: 0 }; lm[263] = { x: cx + .06, y: cy - .03, z: 0 }; return lm; };
+  add('T41', o3('头部姿态：偏转与低头', 'Head pose: yaw and pitch', '머리 자세: 좌우·숙임'), o3('-40°…40° 偏转、0…45° 低头恢复误差 ≤ 3°', 'yaw −40…40° and pitch 0…45° recovered within 3°', '좌우 −40…40°, 숙임 0…45° 오차 ≤ 3°'), () => {
+    let mx = 0; for (let y = -40; y <= 40; y += 10) mx = Math.max(mx, Math.abs(headPose(lmFace(y, 0)).yaw - y)); for (let p = 0; p <= 45; p += 5) mx = Math.max(mx, Math.abs(headPose(lmFace(0, p)).pitch - p));
+    return { pass: mx <= 3, obs: o3(`最大误差 ${mx.toFixed(2)}°（合成几何，未用真人脸验证）`, `max error ${mx.toFixed(2)}° (synthetic geometry, not validated on real faces)`, `최대 오차 ${mx.toFixed(2)}° (합성 기하, 실제 얼굴 미검증)`) }; });
+  const img = (fill, w, h) => { const d = new Uint8ClampedArray(w * h * 4); for (let i = 0; i < w * h; i++) { const c = fill(i % w, Math.floor(i / w)); d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; d[i * 4 + 3] = 255; } return { data: d, w, h }; };
+  add('T42', o3('安全帽/背心颜色启发式', 'Helmet / vest colour heuristic', '안전모·조끼 색상 휴리스틱'), o3('黄/橙/蓝帽识别 ≥ 95%；肤色、灰墙、黑发误判 ≤ 5%；校准后白帽可识别', 'Yellow/orange/blue hats ≥ 95%; skin, grey wall and dark hair ≤ 5% false; white hat works after calibration', '노랑·주황·파랑 ≥ 95%, 피부·회색·검정 오검출 ≤ 5%, 보정 후 흰색 가능'), () => {
+    const rect = { x0: .3, x1: .7, y0: .1, y1: .4 }, pos = [[255, 210, 31], [255, 140, 30], [30, 90, 220], [240, 190, 20]], neg = [[198, 146, 120], [120, 120, 125], [30, 25, 22], [235, 235, 238], [180, 130, 100], [90, 70, 60]];
+    let tp = 0, fp = 0; const jit = (c, k) => c.map((v, i) => cl(v + ((k * 37 + i * 11) % 21) - 10, 0, 255));
+    pos.forEach((c, i) => { if (regionScore(img((x, y) => jit(c, x + y * 3), 40, 40), rect, 'helmet').frac >= .35) tp++; }); neg.forEach((c, i) => { if (regionScore(img((x, y) => jit(c, x + y * 3), 40, 40), rect, 'helmet').frac >= .35) fp++; });
+    const wh = img(() => [236, 236, 240], 40, 40), cal = { h: 240, s: .02, v: .93 }, wOk = regionScore(wh, rect, 'helmet', cal).frac >= .35, wNo = regionScore(img(() => [120, 120, 125], 40, 40), rect, 'helmet', cal).frac < .35;
+    const out = regionScore(img(() => [255, 210, 31], 40, 40), { x0: .3, x1: .7, y0: -.3, y1: .05 }, 'helmet'); const vest = regionScore(img(() => [200, 240, 40], 40, 40), rect, 'vest').frac >= .35;
+    return { pass: tp / pos.length >= .95 && fp / neg.length <= .05 && wOk && wNo && out.inView === false && vest, obs: o3(`正确 ${tp}/${pos.length} · 误判 ${fp}/${neg.length} · 白帽校准 ${wOk ? '✓' : '✗'} · 画面外判“看不到”${out.inView ? '✗' : '✓'}`, `hits ${tp}/${pos.length} · false ${fp}/${neg.length} · white (calibrated) ${wOk ? '✓' : '✗'} · off-frame → “not visible” ${out.inView ? '✗' : '✓'}`, `적중 ${tp}/${pos.length} · 오검출 ${fp}/${neg.length} · 흰색(보정) ${wOk ? '✓' : '✗'} · 화면 밖=“안 보임” ${out.inView ? '✗' : '✓'}`) }; });
+  add('T43', o3('签到判定规则', 'Check-in decision rules', '체크인 판정 규칙'), o3('全部满足才通过；缺任何一项要求都不通过并列出原因；未要求的项不拦截', 'Passes only if all required items hold; any missing item fails with its reason; non-required items do not block', '필수 항목이 모두 충족될 때만 통과, 누락 시 사유 표시, 비필수는 차단 안 함'), () => {
+    const good = { n: 40, fc: 40, op: 40, att: 40, hIn: 40, hel: 40, vIn: 40, ves: 40 }; const a = decide(good), b = decide(Object.assign({}, good, { hel: 5 })), c = decide(Object.assign({}, good, { hel: 5 }), { helmet: false }), d = decide(Object.assign({}, good, { fc: 10, op: 10, att: 10, hIn: 10, hel: 10, vIn: 10, ves: 10 })), e = decide(Object.assign({}, good, { hIn: 3 })), f = decide(Object.assign({}, good, { op: 10 }));
+    const ok = a.pass && !b.pass && b.bad.join() === 'helmet' && c.pass && !d.pass && d.bad[0] === 'face' && e.bad.join() === 'helmet_view' && f.bad.join() === 'eyes';
+    return { pass: ok, obs: o3(`通过 ${a.pass} · 缺帽 ${b.bad} · 不要求帽 ${c.pass} · 无人脸 ${d.bad} · 帽子不在画面 ${e.bad}`, `pass ${a.pass} · no hat ${b.bad} · hat not required ${c.pass} · no face ${d.bad} · hat out of view ${e.bad}`, `통과 ${a.pass} · 안전모 없음 ${b.bad} · 비필수 ${c.pass} · 얼굴 없음 ${d.bad} · 화면 밖 ${e.bad}`) }; });
+  const run = (gen, secs, cfg) => { const m = createMonitor(cfg), ev = []; for (let k = 0; k < secs * 10; k++) { const t = k / 10, o = Object.assign({ t, face: true, ear: .3, pitch: 0, yaw: 0, mar: .1, helmet: true }, gen(t)); m.push(o).forEach(x => ev.push({ type: x, t })); } return { m, ev }; };
+  add('T44', o3('作业监控：正常行为不误报', 'Monitoring: no false alarms on normal behaviour', '작업 감시: 정상 행동 오경보 없음'), o3('10 分钟正常眨眼与小幅转头，0 事件', '10 min of normal blinking and small head turns: 0 events', '정상 눈 깜박임·작은 고개 움직임 10분: 이벤트 0'), () => {
+    const r = run(t => ({ ear: (t % 4) < .2 ? .1 : .3, yaw: 12 * Math.sin(t / 7), pitch: 6 + 4 * Math.sin(t / 5) }), 600); return { pass: r.ev.length === 0 && r.m.level() === 0, obs: o3(`事件 ${r.ev.length} · 等级 ${r.m.level()}`, `events ${r.ev.length} · level ${r.m.level()}`, `이벤트 ${r.ev.length} · 단계 ${r.m.level()}`) }; });
+  add('T45', o3('作业监控：异常行为检出', 'Monitoring: abnormal behaviour detected', '작업 감시: 이상 행동 검출'), o3('闭眼、低头、离岗、摘帽、PERCLOS 疲劳都能检出，延迟 ≤ 阈值 + 0.2 s', 'Long eye closure, head down, leaving, helmet off and PERCLOS fatigue all detected within threshold + 0.2 s', '장시간 눈 감음·숙임·이탈·안전모 벗음·PERCLOS 피로 모두 검출'), () => {
+    const lat = (gen, type, thr, secs) => { const r = run(gen, secs || 40), e = r.ev.find(x => x.type === type); return e ? e.t - 10 - thr : null; };
+    const a = lat(t => ({ ear: t >= 10 && t < 16 ? .05 : .3 }), 'closed_long', 2), b = lat(t => ({ pitch: t >= 10 ? 35 : 5 }), 'head_down', 3), c = lat(t => ({ face: !(t >= 10) }), 'absent', 5, 40), d = lat(t => ({ helmet: !(t >= 10) }), 'helmet_off', 3);
+    const p = run(t => ({ ear: (t % 4) < 1.2 ? .05 : .3 }), 90), perc = p.ev.some(x => x.type === 'drowsy');
+    const ok = [a, b, c, d].every(v => v != null && v <= .21 && v >= -.01) && perc; return { pass: ok, obs: o3(`延迟 闭眼 ${a} · 低头 ${b} · 离岗 ${c} · 摘帽 ${d} s · PERCLOS ${perc ? '✓' : '✗'}`, `latency eyes ${a} · head ${b} · absent ${c} · helmet ${d} s · PERCLOS ${perc ? '✓' : '✗'}`, `지연 눈 ${a} · 숙임 ${b} · 이탈 ${c} · 안전모 ${d} s · PERCLOS ${perc ? '✓' : '✗'}`) }; });
+  add('T46', o3('升级梯度：提醒 → 警告 → 停工请求', 'Escalation: reminder → warning → stop-work request', '단계 상승: 알림 → 경고 → 작업중지 요청'), o3('单次轻微=1 级，关键行为=2 级，持续/重复=3 级；恢复后回落；系统只“请求”，不自动报警', 'Minor = level 1, critical = 2, sustained/repeated = 3; falls back after recovery; the system only requests, never calls automatically', '경미=1, 중요=2, 지속/반복=3, 회복 후 하강; 시스템은 요청만 하고 자동 신고 없음'), () => {
+    const r1 = run(t => ({ mar: t >= 5 && t < 8 ? .8 : .1 }), 20).m.level(), r2 = run(t => ({ helmet: !(t >= 5 && t < 12) }), 12).m.level(), r3 = run(t => ({ ear: t >= 5 && t < 15 ? .05 : .3 }), 15).m.level(), r4 = run(t => ({ ear: t >= 5 && t < 8 ? .05 : .3 }), 400).m.level();
+    return { pass: r1 === 1 && r2 === 2 && r3 === 3 && r4 === 0, obs: o3(`打哈欠 ${r1} · 摘帽 ${r2} · 持续闭眼 ${r3} · 5 分钟后 ${r4}`, `yawn ${r1} · helmet off ${r2} · sustained closure ${r3} · after 5 min ${r4}`, `하품 ${r1} · 안전모 ${r2} · 지속 감음 ${r3} · 5분 후 ${r4}`) }; });
+  return S;
+}
+const API = { POL, headPose, mar, regions, rgb2hsv, regionScore, decide, createMonitor, SEV, suite };
+if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.SHKS = API;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
 (function () {
 'use strict';
 const K = window.SHK;
 const MK = window.SHKM;
 const RB = window.SHKR;
+const SU = window.SHKS;
 const $ = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
 const clamp = K.clamp;
@@ -2117,7 +2290,7 @@ const D = {
 Object.assign(D, {
   n_home: ['总览', 'Overview', '개요'],
   n_floor: ['定位与姿势', 'Tracking & posture', '위치·자세'],
-  lb_a: ['A · 场景测试 40 项', 'A · 40 scenario tests', 'A · 시나리오 테스트 40건'],
+  lb_a: ['A · 场景测试 46 项', 'A · 46 scenario tests', 'A · 시나리오 테스트 46건'],
   lb_a_p: ['每项有固定随机种子和预期结果：运动伪影、传感器冲突、蓝牙断连、云端断连、隐私载荷、定位围栏、姿势、派单、回放等。', 'Each has a fixed seed and an expected result: motion artifacts, sensor conflict, BLE drop, cloud outage, privacy payload, geofence, posture, dispatch, replay and more.', '각 항목은 고정 시드와 기대 결과를 가집니다: 모션 아티팩트, 센서 충돌, BLE·클라우드 단절, 개인정보, 지오펜스, 자세, 배정, 리플레이 등.'],
   fl_eye: ['定位与姿势', 'TRACKING & POSTURE', '위치·자세'], fl_title: ['每个戴表的人在哪，在做什么', 'Where every wearer is, and what they are doing', '착용자의 위치와 동작'],
   fl_lead: ['UWB 定位把所有佩戴手表的作业者放在同一张平面图上，手表 IMU 识别动作和躯干前倾，视频只提取骨架关键点来交叉验证。进入危险区之前、姿势负荷累积到伤害之前，系统先预警。',
@@ -2158,8 +2331,8 @@ D.lim.push(D.lim6);
 
 Object.assign(D, {
   n_aimon: ['现场 AI 监控', 'On-site AI monitor', '현장 AI 모니터'],
-  am_eye: ['现场 AI 监控器', 'ON-SITE AI MONITOR', '현장 AI 모니터'], am_title: ['入口签到，现场看板', 'Check-in at the gate, one board on the floor', '출입구 체크인, 현장 한눈에'],
-  am_lead: ['作业前在入口摄像头前站 4 秒，AI 核对安全帽、背心、口罩和眼睛状态，并用语音和警示灯告知结果。现场监控员用假名编号和数字孪生显示多人，不显示摄像头画面。', 'Stand in front of the gate camera for four seconds: AI checks helmet, vest, mask and eye state and answers by voice and warning lamp. The floor monitor shows many workers as pseudonymous digital-twin dolls, not camera images.', '작업 전 출입구 카메라 앞에서 4초: AI가 안전모·조끼·마스크·눈 상태를 확인하고 음성과 경광등으로 알립니다. 현장 모니터는 카메라 영상 대신 가명 번호와 디지털 트윈으로 여러 명을 표시합니다.'],
+  am_eye: ['现场 AI 监控器', 'ON-SITE AI MONITOR', '현장 AI 모니터'], am_title: ['入口签到 + 作业监控，一套完整的现场监管', 'Gate check-in + on-duty monitoring: one supervision system', '출입 체크인 + 작업 중 감시: 하나의 현장 감독 체계'],
+  am_lead: ['作业前在入口摄像头前站几秒，系统核对在场、眼睛、注意力、安全帽和背心；作业中持续监控闭眼、疲劳、低头、哈欠、离岗和摘帽，并按“提醒→警告→停工请求”逐级升级。放行、停工、报 119 都由人决定，所有事件和决定写入审计日志。现场监控员用假名编号和数字孪生显示多人，不显示摄像头画面。', 'Stand at the gate camera for a few seconds and the system checks presence, eyes, attention, helmet and vest. While you work it keeps watching for eye closure, fatigue, head-down, yawning, leaving the post and helmet removal, escalating from reminder to warning to a stop-work request. Letting someone in, stopping work and calling 119 are human decisions, and every event and decision goes into the audit log. The floor monitor shows many workers as pseudonymous digital-twin dolls, not camera images.', '출입구 카메라 앞에 잠시 서면 재실·눈·주의·안전모·조끼를 확인하고, 작업 중에는 눈 감음·피로·숙임·하품·이탈·안전모 벗음을 지속 감시하여 알림→경고→작업중지 요청으로 단계 상승합니다. 승인·중지·119 신고는 사람이 결정하며 모든 이벤트와 결정은 감사 로그에 기록됩니다. 현장 모니터는 가명 번호와 디지털 트윈으로 표시하며 카메라 영상은 보여주지 않습니다.'],
   am_m1: ['作业前签到', 'Pre-work check-in', '작업 전 체크인'], am_m1s: ['1 人 · 入口', '1 person · gate', '1명 · 출입구'], am_m2: ['现场监控员', 'Floor monitor', '현장 모니터'], am_m2s: ['多人 · 数字孪生', 'many · digital twin', '여러 명 · 디지털 트윈'],
   am_badge: ['演示场景（模拟）', 'Demo scene (simulated)', '데모 장면 (모의)'],
   am_badge_cam: ['真实摄像头 · 待开始', 'Real camera · ready', '실제 카메라 · 대기'], am_badge_live: ['真实摄像头 · 仅本机', 'Real camera · local only', '실제 카메라 · 이 기기에서만'],
@@ -2168,7 +2341,7 @@ Object.assign(D, {
   am_s_fail: ['识别模型无法加载（网络或页面限制），当前只能预览。', 'The detection model could not be loaded (network or page restrictions); preview only.', '인식 모델을 불러올 수 없어(네트워크·페이지 제한) 미리보기만 가능합니다.'],
   am_h_wait: ['请面向摄像头', 'Please face the camera', '카메라를 바라봐 주세요'], am_s_wait: ['检测到人脸后开始 4 秒观察。', 'The observation starts once a face is seen.', '얼굴이 보이면 관찰을 시작합니다.'],
   am_h_pass_e: ['眼睛与在场检查通过', 'Presence and eye check passed', '눈·재실 확인 통과'], am_h_fail_e: ['未通过：', 'Not passed:', '미통과:'], am_s_part: ['只检查了在场与眼睛。安全帽、背心、口罩需要专用模型，未检测。', 'Only presence and eyes were checked. Helmet, vest and mask need a dedicated model and were not assessed.', '재실·눈만 확인했습니다. 안전모·조끼·마스크는 전용 모델이 필요해 검사하지 않았습니다.'],
-  am_noface: ['未检测到人脸', 'No face detected', '얼굴 미검출'], am_partial: ['仅眼睛', 'eyes only', '눈만'],
+  am_noface: ['未检测到人脸', 'No face detected', '얼굴 미검출'], am_partial: ['口罩未检测', 'mask not checked', '마스크 미검사'],
   am_cam_real: ['真实摄像头', 'Real camera', '실제 카메라'],
   am_hint_t: ['点击“开始”打开摄像头', 'Press Start to open the camera', '“시작”을 눌러 카메라 열기'], am_hint_p: ['浏览器会请求摄像头权限。画面只在本机显示，不上传、不保存。', 'Your browser will ask for camera permission. Video stays on this device: not uploaded, not saved.', '브라우저가 카메라 권한을 요청합니다. 영상은 이 기기에만 표시되며 업로드·저장되지 않습니다.'],
   am_req_t: ['正在请求摄像头权限…', 'Requesting camera permission…', '카메라 권한 요청 중…'], am_req_p: ['请在浏览器弹出的提示里选“允许”。', 'Choose “Allow” in the browser prompt.', '브라우저 팝업에서 “허용”을 선택하세요.'],
@@ -2221,10 +2394,18 @@ Object.assign(D, {
   sp_pkt: ['最近收到的一个数据包（原样）', 'Latest packet received (verbatim)', '최근 수신한 패킷 (원문)'],
   sp_ack_ok: ['管制室回执：已收到', 'Control room: received', '관제실 회신: 수신'], sp_ack_stop: ['管制室指令：停止作业', 'Control room command: stop work', '관제실 지시: 작업 중지'],
   sp_stat_up: ['企业→管制室', 'Site→Control', '기업→관제'], sp_stat_dn: ['管制室→企业', 'Control→Site', '관제→기업'], sp_pps: ['包/秒', 'pkt/s', '패킷/초'], sp_video: ['视频', 'video', '영상'],
-  sp_relay_tip: ['真正跨设备传输需要一台中继服务器，这个页面里没有，所以按钮不可用。', 'Real cross-device transfer needs a relay server, which this page does not have, so the button is disabled.', '기기 간 전송에는 중계 서버가 필요한데 이 페이지에는 없어 버튼을 사용할 수 없습니다.'],
-  sp_note: ['这是同一个浏览器页面里的演示：企业端和管制室端各自只通过数据包通信，管制室一侧的画面只用收到的数字绘制。数据为模拟，护具检测的置信度是模拟值。', 'This is an in-browser demo: the site side and the control side talk only through packets, and the control side draws from received numbers alone. Data are simulated, and the PPE confidences are simulated values.', '같은 브라우저 페이지 안의 시연입니다. 현장 쪽과 관제 쪽은 패킷으로만 통신하고, 관제 화면은 수신한 숫자만으로 그립니다. 데이터는 모의이며 보호구 신뢰도도 모의 값입니다.'],
+  sp_relay_tip0: ['真正跨设备传输需要一台中继服务器，这个页面里没有，所以按钮不可用。', 'Real cross-device transfer needs a relay server, which this page does not have, so the button is disabled.', '기기 간 전송에는 중계 서버가 필요한데 이 페이지에는 없어 버튼을 사용할 수 없습니다.'],
+  sp_note: ['这是同一个浏览器页面里的演示：企业端和管制室端各自只通过数据包通信，管制室一侧的画面只用收到的数字绘制。数据为模拟，护具检测的置信度是模拟值。选“中继服务器”后，数据包会真的经服务器在两台设备间传输（延迟是实测值）；但“模拟场景”的内容和护具置信度仍是模拟的，只有“真实摄像头”的人脸/眼睛是真实检测。', 'This is an in-browser demo: the site side and the control side talk only through packets, and the control side draws from received numbers alone. Data are simulated, and the PPE confidences are simulated values. In “Relay server” mode packets really travel through a server between two devices (latency is measured), but the simulated scene and PPE confidences remain simulated; only the real camera’s face/eye detection is real.', '같은 브라우저 페이지 안의 시연입니다. 현장 쪽과 관제 쪽은 패킷으로만 통신하고, 관제 화면은 수신한 숫자만으로 그립니다. 데이터는 모의이며 보호구 신뢰도도 모의 값입니다. “중계 서버” 모드에서는 패킷이 실제로 서버를 거쳐 두 기기 사이를 오가며(지연은 실측) 모의 장면·보호구 신뢰도는 여전히 모의이고 실제 카메라의 얼굴·눈 검출만 실제입니다.'],
   sp_err: ['摄像头无法访问', 'Camera not accessible', '카메라에 접근할 수 없음'], sp_model_fail: ['人脸模型无法加载，当前只做预览。', 'The face model could not be loaded; preview only.', '얼굴 모델을 불러올 수 없어 미리보기만 합니다.'], sp_model_load: ['正在加载人脸模型…', 'Loading the face model…', '얼굴 모델 로드 중…'],
   sp_retry: ['重试加载', 'Retry', '다시 시도'], sp_model_ok: ['人脸模型已就绪（本机运行）', 'Face model ready (running on this device)', '얼굴 모델 준비 완료 (이 기기에서 실행)'],
+  sp_net_role: ['这台设备的角色', 'Role of this device', '이 기기의 역할'], sp_role_site: ['企业现场（发送）', 'Enterprise site (sends)', '기업 현장(송신)'], sp_role_ctl: ['管制室（接收）', 'Control room (receives)', '관제실(수신)'],
+  sp_net_room: ['房间码（两台设备要相同，≥ 6 位字母数字）', 'Room code (same on both devices, ≥ 6 letters/digits)', '방 코드(두 기기 동일, 6자 이상 영숫자)'], sp_net_url: ['中继服务器地址（wss://…）', 'Relay server address (wss://…)', '중계 서버 주소(wss://…)'],
+  sp_net_hint: ['房间码就是“密码”，别用容易猜的。中继服务器只转发数字数据包，不收视频，也不保存内容。服务器部署方法见 relay/README.md。', 'The room code works as the password, so avoid guessable ones. The relay only forwards numeric packets, receives no video and stores nothing. Deployment: relay/README.md.', '방 코드가 곧 비밀번호이니 쉬운 코드는 피하세요. 중계 서버는 숫자 패킷만 전달하며 영상은 받지 않고 저장하지 않습니다. 배포: relay/README.md.'],
+  sp_ns_off: ['未连接', 'Not connected', '연결 안 됨'], sp_ns_conn: ['正在连接中继服务器…', 'Connecting to relay…', '중계 서버에 연결 중…'], sp_ns_open: ['已连接', 'Connected', '연결됨'], sp_ns_err: ['连接失败：', 'Connection failed: ', '연결 실패: '], sp_ns_retry: ['断线，正在重连…', 'Disconnected, retrying…', '끊김, 재연결 중…'],
+  sp_ns_peer_site: ['企业端在线', 'site online', '기업 측 온라인'], sp_ns_peer_nosite: ['企业端还没上线', 'site not online yet', '기업 측 미접속'], sp_ns_peer_ctl: ['管制室在线', 'control room online', '관제실 온라인'], sp_ns_peer_noctl: ['管制室还没上线', 'control room not online yet', '관제실 미접속'], sp_ns_rtt: ['往返延迟', 'round trip', '왕복 지연'],
+  sp_ne_url: ['请填写 wss:// 开头的服务器地址（HTTPS 页面不能用 ws://，本机 localhost 除外）。', 'Enter a wss:// address (an HTTPS page cannot use ws://, except localhost).', 'wss:// 주소를 입력하세요(HTTPS 페이지는 localhost 외 ws:// 사용 불가).'], sp_ne_room: ['房间码需要 6–32 位字母、数字、- 或 _。', 'Room code must be 6–32 letters, digits, - or _.', '방 코드는 6–32자의 영숫자, -, _ 이어야 합니다.'], sp_ne_busy: ['这个房间已经有企业端了。', 'This room already has a site.', '이 방에는 이미 기업 측이 있습니다.'], sp_ne_full: ['这个房间的管制室已满。', 'The control-room seats are full.', '관제실 자리가 가득 찼습니다.'],
+  sp_ctl_wait: ['等待企业端数据…', 'Waiting for site data…', '기업 측 데이터 대기 중…'], sp_ctl_nov: ['企业现场的视频不在这台设备上，这里只收数字。', 'Site video is not on this device; only numbers arrive here.', '현장 영상은 이 기기에 없으며 숫자만 수신합니다.'], sp_nosig: ['信号中断：超过 3 秒没有收到数据包', 'No signal: no packet for over 3 s', '신호 끊김: 3초 넘게 패킷 없음'],
+  sp_cmd_stop: ['发送“停止作业”指令', 'Send “stop work” command', '“작업 중지” 지시 보내기'], sp_cmd_clear: ['解除停止指令', 'Clear stop command', '중지 지시 해제'], sp_cmd_n: ['指令由人手动发出，会真实传回企业端。119 报警同样由人决定，本系统不会自动报警。', 'The command is sent by a person and really travels back to the site. Calling 119 is likewise a human decision; this system never calls automatically.', '지시는 사람이 직접 보내며 실제로 기업 측에 전달됩니다. 119 신고도 사람이 결정하며 시스템이 자동 신고하지 않습니다.'],
   sp_site: ['模拟画面 · SIMULATED', 'SIMULATED SCENE', '모의 장면 · SIMULATED']
 });
 
@@ -2784,7 +2965,7 @@ function renderSuite() {
 }
 function runSuite() {
   const out = []; const t0 = performance.now();
-  K.suite().concat(MK.suite()).concat(RB.suite()).concat((function () { const o3 = (zh, en, ko) => ({ zh, en, ko }); return [{ id: 'T34', name: o3('现场 AI 监控：4 秒多数表决', 'AI monitor: 4 s majority vote', '현장 AI 모니터: 4초 다수결'), expect: o3('表决准确率 ≥ 99.5%，且高于单帧', 'Vote accuracy ≥ 99.5% and above single-frame', '다수결 정확도 ≥ 99.5%, 단일 프레임보다 높음'), run: () => {
+  K.suite().concat(MK.suite()).concat(RB.suite()).concat(SU.suite()).concat((function () { const o3 = (zh, en, ko) => ({ zh, en, ko }); return [{ id: 'T34', name: o3('现场 AI 监控：4 秒多数表决', 'AI monitor: 4 s majority vote', '현장 AI 모니터: 4초 다수결'), expect: o3('表决准确率 ≥ 99.5%，且高于单帧', 'Vote accuracy ≥ 99.5% and above single-frame', '다수결 정확도 ≥ 99.5%, 단일 프레임보다 높음'), run: () => {
   const r = K.rng(424242); let one = 0, vote = 0, n = 0; for (let i = 0; i < 4000; i++) for (let q = 0; q < 4; q++) { const truth = r() > .3; let v = 0; for (let f = 0; f < 40; f++) { const d = r() < .9 ? truth : !truth; if (f === 0 && d === truth) one++; v += d ? 1 : 0; } if ((v >= 20) === truth) vote++; n++; }
   const a1 = one / n, a2 = vote / n; return { pass: a2 >= .995 && a2 > a1, obs: o3(`单帧 ${(a1 * 100).toFixed(1)}% → 表决 ${(a2 * 100).toFixed(2)}%`, `single ${(a1 * 100).toFixed(1)}% → vote ${(a2 * 100).toFixed(2)}%`, `단일 ${(a1 * 100).toFixed(1)}% → 다수결 ${(a2 * 100).toFixed(2)}%`) }; } },
   { id: 'T35', name: { zh: '真实摄像头：眼睛判定逻辑', en: 'Real camera: eye-judgement logic', ko: '실제 카메라: 눈 판정 로직' }, expect: { zh: '合成关键点：睁/闭眼分类 ≥ 99%，4 秒投票 ≥ 99.5%', en: 'Synthetic landmarks: open/closed ≥ 99%, 4 s vote ≥ 99.5%', ko: '합성 랜드마크: 개폐 분류 ≥ 99%, 4초 투표 ≥ 99.5%' }, run: () => {
@@ -2898,22 +3079,35 @@ function measureEngine() {
 
 /* ============================================================ on-site AI monitor */
 const AM = { mode: 'checkin', run: false, ph: 'idle', ph0: 0, per: null, votes: null, frames: 0, rec: [], seed: 9100, lamp: 'idle', lampT: 0, stream: null, cams: [], live: false, lv: { model: 'idle', fm: null, ph: 'wait', ph0: 0, n: 0, fc: 0, op: 0, lastFace: 0, lastSend: 0, busy: false, ear: null, lm: null, res: null }, src: 'cam', dev: null, err: null, req: false, frameSubs: [], fid: 0, res: null, timer: null, n: 0 };
-const AM_KEYS = ['helmet', 'vest', 'mask', 'eyes'];
+const AM_KEYS = ['helmet', 'vest', 'mask', 'eyes', 'attn'];
+const amReal = () => AM.src === 'cam' && AM.mode !== 'site';
+function amPol() { const g = id => $('#' + id); return Object.assign({}, SU.POL, { helmet: g('polHelmet').checked, vest: g('polVest').checked, mask: g('amNeedMask').checked, eyes: g('polEyes').checked, attn: g('polAttn').checked, dwell: +g('amDwell').value, closed: +g('polClosed').value, perclos: +g('polPerclos').value, down: +g('polDown').value, away: +g('polAway').value, absent: +g('polAbsent').value }); }
+function amPolTag() { const p = amPol(); return ['helmet', 'vest', 'mask', 'eyes', 'attn'].map(k => p[k] ? k[0].toUpperCase() : '-').join('') + '|d' + p.dwell + '|c' + p.closed + '|p' + Math.round(p.perclos * 100) + '|v' + p.down + '/' + p.away + '/' + p.absent; }
+const AM_POLIDS = ['polHelmet', 'polVest', 'polEyes', 'polAttn', 'amNeedMask', 'amDwell', 'polClosed', 'polPerclos', 'polDown', 'polAway', 'polAbsent'];
+function amPolLoad() { try { const q = JSON.parse(localStorage.getItem('shk-pol') || '{}'); AM_POLIDS.forEach(id => { const el = $('#' + id); if (!el || q[id] == null) return; if (el.type === 'checkbox') el.checked = !!q[id]; else if ([...el.options].some(o => o.value === String(q[id]))) el.value = String(q[id]); }); } catch (_) {} }
+function amPolSave() { try { const q = {}; AM_POLIDS.forEach(id => { const el = $('#' + id); q[id] = el.type === 'checkbox' ? el.checked : el.value; }); localStorage.setItem('shk-pol', JSON.stringify(q)); } catch (_) {} }
+try { const c = JSON.parse(localStorage.getItem('shk-cal') || '{}'); AM.cal = { helmet: c.helmet || null, vest: c.vest || null }; AM.neutral = c.neutral || { pitch: 0, yaw: 0 }; } catch (_) { AM.cal = { helmet: null, vest: null }; AM.neutral = { pitch: 0, yaw: 0 }; }
+AM.mon = null; AM.ev = []; AM.audit = []; AM.lvl = 0; AM.stopReq = null; AM.pending = null; AM.simO = null; AM.scn = 'normal'; AM.calMsg = '';
+function amSaveCal() { try { localStorage.setItem('shk-cal', JSON.stringify({ helmet: AM.cal.helmet, vest: AM.cal.vest, neutral: AM.neutral })); } catch (_) {} }
+const amBadNames = bad => bad.map(k => t('am_' + k)).join(' · ');
+const amStamp = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };
+function amAudit(kind, o) { AM.audit.push(Object.assign({ time: amStamp(), kind, src: AM.src === 'sim' ? 'sim' : 'cam', pol: amPolTag() }, o)); }
 function amPerson() {
   const r = K.rng(AM.seed++); AM.n++;
-  return { id: 'P-' + String(4000 + AM.n * 7 + Math.floor(r() * 5)).padStart(4, '0'), helmet: r() > .22, vest: r() > .15, mask: r() > .25, eyes: r() > .15, x: 0 };
+  return { id: 'P-' + String(4000 + AM.n * 7 + Math.floor(r() * 5)).padStart(4, '0'), helmet: r() > .22, vest: r() > .15, mask: r() > .25, eyes: r() > .15, attn: r() > .12, x: 0 };
 }
-function amNeed() { return { helmet: true, vest: true, mask: $('#amNeedMask').checked, eyes: true }; }
+function amNeed() { const p = amPol(); return { helmet: p.helmet, vest: p.vest, mask: p.mask, eyes: p.eyes, attn: p.attn }; }
 function amSay(txt) { try { if (!$('#amSnd').checked || !window.speechSynthesis) return; const u = new SpeechSynthesisUtterance(txt); u.lang = ['zh-CN', 'en-US', 'ko-KR'][App.lang]; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (_) {} }
 function amBeep(fail) {
   try { if (!$('#amSnd').checked) return; const A = AM.ac || (AM.ac = new (window.AudioContext || window.webkitAudioContext)()); const o = A.createOscillator(), g = A.createGain(); o.connect(g); g.connect(A.destination); o.type = 'square'; o.frequency.value = fail ? 520 : 880; g.gain.value = .05; o.start(); o.frequency.setValueAtTime(fail ? 700 : 1100, A.currentTime + .15); o.stop(A.currentTime + (fail ? .5 : .25)); } catch (_) {}
 }
 function amSetLamp(st) { AM.lamp = st; AM.lampT = performance.now(); renderAm(); if (st !== 'idle') setTimeout(() => { if (AM.lamp === st && performance.now() - AM.lampT > 3800) { AM.lamp = 'idle'; renderAm(); } }, 4000); }
 function amStep() {
+  if (AM.mode === 'watch') { amWatchStep(); drawAm(); return; }
   if (AM.src === 'cam' && AM.mode === 'checkin') { amLiveStep(); drawAm(); return; }
   if (!AM.run || AM.mode !== 'checkin') { drawAm(); return; }
   const now = performance.now(), dwell = +$('#amDwell').value * 1000;
-  if (AM.ph === 'idle') { AM.per = amPerson(); AM.ph = 'walk'; AM.ph0 = now; AM.votes = { helmet: [0, 0], vest: [0, 0], mask: [0, 0], eyes: [0, 0] }; AM.frames = 0; AM.res = null; }
+  if (AM.ph === 'idle') { AM.per = amPerson(); AM.ph = 'walk'; AM.ph0 = now; AM.votes = { helmet: [0, 0], vest: [0, 0], mask: [0, 0], eyes: [0, 0], attn: [0, 0] }; AM.frames = 0; AM.res = null; }
   if (AM.ph === 'walk') { AM.per.x = Math.min(1, (now - AM.ph0) / 1200); if (now - AM.ph0 > 1200) { AM.ph = 'obs'; AM.ph0 = now; } }
   else if (AM.ph === 'obs') {
     const r = K.rng((now | 0) ^ 0x5bd1), P = AM.per; AM.frames++;
@@ -2921,7 +3115,7 @@ function amStep() {
     if (now - AM.ph0 >= dwell) {
       const need = amNeed(), ok = {}, bad = []; AM_KEYS.forEach(k => { ok[k] = AM.votes[k][1] >= AM.votes[k][0]; if (need[k] && !ok[k]) bad.push(k); });
       AM.res = { ok, bad, pass: bad.length === 0 }; AM.ph = 'show'; AM.ph0 = now;
-      const rc = { n: AM.rec.length + 1, t: new Date().toTimeString().slice(0, 8), id: P.id, pass: AM.res.pass, bad: bad.slice() }; AM.rec.unshift(rc);
+      const rc = { n: AM.rec.length + 1, t: new Date().toTimeString().slice(0, 8), id: P.id, pass: AM.res.pass, bad: bad.slice(), src: 'sim', pol: amPolTag(), items: ok }; AM.rec.unshift(rc); AM.pending = rc.pass ? null : rc; amAudit('checkin', { id: P.id, result: rc.pass ? 'pass' : 'fail', detail: bad.join('|') });
       amSetLamp(AM.res.pass ? 'green' : 'red'); amBeep(!AM.res.pass); amSay(AM.res.pass ? t('am_say_pass') : t('am_say_fail') + ' ' + bad.map(k => t('am_' + k)).join(', '));
     }
   } else if (AM.ph === 'show') { if (now - AM.ph0 > 3800) { AM.ph = 'idle'; } }
@@ -2930,15 +3124,16 @@ function amStep() {
 function amDet(k, P) { return AM.res ? AM.res.ok[k] : (AM.votes && AM.votes[k][0] + AM.votes[k][1] ? AM.votes[k][1] >= AM.votes[k][0] : null); }
 function drawAm() {
   const cv = $('#amCv'); if (!cv || !cv.offsetParent) return; const s = sized(cv); if (!s) return; const { x, w, h } = s; const mono = getComputedStyle(document.body).getPropertyValue('--f-mono');
-  if (AM.src === 'cam' && AM.mode === 'checkin') {
+  if (amReal()) {
     if (!AM.live) { x.fillStyle = '#0b1220'; x.fillRect(0, 0, w, h); return; }
     const L = AM.lv; x.fillStyle = 'rgba(0,0,0,.55)'; x.fillRect(0, 0, w, 26); x.fillStyle = '#fff'; x.font = '12px ' + mono;
     x.fillText(L.model === 'ready' ? 'LIVE · LOCAL ONLY · FACE MESH' + (L.ear != null ? ' · EAR ' + L.ear.toFixed(2) : '') : 'LIVE · LOCAL ONLY · ' + (L.model === 'loading' ? 'LOADING MODEL…' : 'NO DETECTOR'), 10, 17);
     if (L.model === 'ready' && L.lm && Date.now() - L.lastFace < 400) { const v = $('#amVid'), vw = v.videoWidth || 1, vh = v.videoHeight || 1, sc = Math.max(w / vw, h / vh), ox = (w - vw * sc) / 2, oy = (h - vh * sc) / 2; x.fillStyle = L.ear != null && L.ear < AM_EAR_CLOSED ? '#ff5a5a' : '#2fd07a'; AM_EYE_L.concat(AM_EYE_R).forEach(i => { const q = L.lm[i]; if (q) { x.beginPath(); x.arc(ox + q.x * vw * sc, oy + q.y * vh * sc, 2.5, 0, 6.29); x.fill(); } }); }
-    return;
+    amDrawRegions(x, w, h, L, mono); return;
   }
   x.fillStyle = '#0b1220'; x.fillRect(0, 0, w, h);
   if (AM.mode === 'site') { drawTwin(x, w, h, mono); return; }
+  if (AM.mode === 'watch') { drawAvatar(x, w, h, mono); return; }
   x.fillStyle = 'rgba(255,255,255,.04)'; for (let i = 0; i < h; i += 4) x.fillRect(0, i, w, 1);
   x.fillStyle = 'rgba(255,255,255,.7)'; x.font = '11px ' + mono; x.fillText('SIMULATED SCENE · GATE CAM', 10, 16);
   x.strokeStyle = 'rgba(255,255,255,.25)'; x.setLineDash([6, 6]); x.strokeRect(w * .3, h * .1, w * .4, h * .86); x.setLineDash([]);
@@ -2957,6 +3152,19 @@ function drawAm() {
     box('helmet', cx - 11 * u, hy - 10.5 * u, 22 * u, 12 * u, t('am_helmet')); box('vest', cx - 12 * u, hy + 9 * u, 24 * u, 29 * u, t('am_vest')); box('mask', cx - 7 * u, hy + 2 * u, 14 * u, 6 * u, t('am_mask')); box('eyes', cx - 7 * u, hy - 3 * u, 14 * u, 5 * u, t('am_eyes'));
   }
 }
+function amDrawRegions(x, w, h, L, mono) {
+  if (!(L.lm && L.sm && Date.now() - L.lastFace < 400)) return; const v = $('#amVid'), vw = v.videoWidth || 1, vh = v.videoHeight || 1, sc = Math.max(w / vw, h / vh), ox = (w - vw * sc) / 2, oy = (h - vh * sc) / 2, R = SU.regions(L.lm);
+  [['helmet', R.helmet, L.sm.h, .35], ['vest', R.vest, L.sm.v, .30]].forEach(([k, rc, s, th]) => { const ok = s.inView && s.frac >= th; x.strokeStyle = !s.inView ? '#9aa7ba' : ok ? '#2fd07a' : '#ff5a5a'; x.lineWidth = 2; x.setLineDash([6, 4]); const X0 = ox + rc.x0 * vw * sc, Y0 = oy + rc.y0 * vh * sc; x.strokeRect(X0, Y0, (rc.x1 - rc.x0) * vw * sc, (rc.y1 - rc.y0) * vh * sc); x.setLineDash([]); x.fillStyle = x.strokeStyle; x.font = '11px ' + mono; x.fillText(t('am_' + k) + (s.inView ? ' ' + Math.round(s.frac * 100) + '%' : ' · ' + t('tl_nv')), Math.max(4, X0), Math.max(38, Y0 - 4)); });
+}
+function drawAvatar(x, w, h, mono) {
+  const o = AM.simO, cx = w / 2, cy = h * .45, R = Math.min(w, h) * .2; x.fillStyle = 'rgba(255,255,255,.7)'; x.font = '11px ' + mono; x.fillText('SIMULATED SCENARIO · ' + t('am_sc_' + AM.scn), 10, 16);
+  if (!AM.run || !o) { x.fillStyle = 'rgba(255,255,255,.5)'; x.font = '14px ' + getComputedStyle(document.body).getPropertyValue('--f-body'); x.textAlign = 'center'; x.fillText(t('am_w_idle'), cx, h / 2, w * .85); x.textAlign = 'left'; return; }
+  if (!o.face) { x.strokeStyle = '#ff5a5a'; x.setLineDash([6, 6]); x.strokeRect(cx - R * 1.4, cy - R * 1.5, R * 2.8, R * 3.6); x.setLineDash([]); x.fillStyle = '#ff8a8a'; x.textAlign = 'center'; x.fillText(t('am_noface'), cx, cy); x.textAlign = 'left'; return; }
+  x.save(); x.translate(cx + o.yaw * R / 60, cy + o.pitch * R / 45); x.fillStyle = '#c99a7a'; x.beginPath(); x.arc(0, 0, R, 0, 6.29); x.fill(); x.fillRect(-R * .35, R * .9, R * .7, R * 1.2);
+  if (o.helmet !== false) { x.fillStyle = '#ffd21f'; x.beginPath(); x.arc(0, -R * .1, R * 1.1, Math.PI, 0); x.fill(); x.fillRect(-R * 1.25, -R * .16, R * 2.5, R * .2); }
+  x.strokeStyle = '#12161e'; x.fillStyle = '#12161e'; x.lineWidth = 2; [-1, 1].forEach(sg => { x.beginPath(); if (o.ear >= .2) x.arc(sg * R * .38, R * .1, R * .09, 0, 6.29), x.fill(); else { x.moveTo(sg * R * .38 - R * .14, R * .12); x.lineTo(sg * R * .38 + R * .14, R * .12); x.stroke(); } });
+  x.beginPath(); if (o.mar >= .6) x.ellipse(0, R * .55, R * .18, R * .22, 0, 0, 6.29), x.fill(); else { x.moveTo(-R * .22, R * .55); x.lineTo(R * .22, R * .55); x.stroke(); } x.restore();
+}
 function drawTwin(x, w, h, mono) {
   const F = MK.FLOOR, k = Math.min(w / F.w, h / F.h) * .96, ox = (w - F.w * k) / 2, oy = (h - F.h * k) / 2, X = m => ox + m * k, Y = m => oy + m * k;
   x.fillStyle = '#101a2c'; x.fillRect(ox, oy, F.w * k, F.h * k); x.strokeStyle = 'rgba(255,255,255,.18)'; x.strokeRect(ox, oy, F.w * k, F.h * k);
@@ -2972,28 +3180,33 @@ function renderAm() {
   const st = $('#amStart'); if (!st) return; st.textContent = AM.run ? t('am_stop') : t('am_start'); st.classList.toggle('on', AM.run);
   $$('[data-am]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.am === AM.mode)));
   let hd, sb;
-  if (AM.mode === 'checkin' && AM.src === 'cam' && AM.err) { hd = t('am_h_err'); sb = t(amErrKey(AM.err)); }
-  else if (AM.mode === 'checkin' && AM.src === 'cam' && AM.live) { const L = AM.lv; if (L.model === 'loading') { hd = t('am_h_live'); sb = t('am_s_load'); } else if (L.model === 'fail') { hd = t('am_h_live'); sb = t('am_s_fail') + ' [' + MP.err + ']'; } else if (!AM.run) { hd = t('am_h_live'); sb = t('am_s_live'); } else if (L.ph === 'show' && L.res) { hd = L.res.pass ? t('am_h_pass_e') : t('am_h_fail_e') + ' ' + (L.res.face ? t('am_drowsy') : t('am_noface')); sb = t('am_s_part'); } else if (L.ph === 'obs') { hd = t('am_h_obs'); sb = t('am_s_obs'); } else { hd = t('am_h_wait'); sb = t('am_s_wait'); } }
-  else if (AM.mode === 'checkin' && AM.src === 'cam') { hd = t('am_hint_t'); sb = t('am_hint_p'); }
+  if (amReal() && AM.err) { hd = t('am_h_err'); sb = t(amErrKey(AM.err)); }
+  else if (AM.mode === 'watch' && AM.run && (AM.src === 'sim' || (AM.live && AM.lv.model === 'ready'))) { hd = t('am_w_l' + AM.lvl); sb = t('am_w_s'); }
+  else if (amReal() && AM.live) { const L = AM.lv; if (L.model === 'loading') { hd = t('am_h_live'); sb = t('am_s_load'); } else if (L.model === 'fail') { hd = t('am_h_live'); sb = t('am_s_fail') + ' [' + MP.err + ']'; } else if (!AM.run) { hd = t('am_h_live'); sb = t('am_s_live'); } else if (L.ph === 'show' && L.res) { hd = L.res.pass ? t('am_h_pass_r') : t('am_h_fail_e') + ' ' + amBadNames(L.res.bad); sb = t('am_s_part2'); } else if (L.ph === 'obs') { hd = t('am_h_obs'); sb = t('am_s_obs'); } else { hd = t('am_h_wait'); sb = t('am_s_wait'); } }
+  else if (amReal()) { hd = t('am_hint_t'); sb = t('am_hint_p'); }
+  else if (AM.mode === 'watch') { hd = t('am_w_idle'); sb = t('am_w_idle_s'); }
   else if (AM.mode === 'site') { hd = t('am_h_site'); sb = t('am_s_site'); }
   else if (AM.ph === 'show' && AM.res) { hd = AM.res.pass ? t('am_h_pass') : t('am_h_fail') + ' ' + AM.res.bad.map(k => t('am_' + k)).join(' · '); sb = AM.per.id; }
   else if (AM.ph === 'obs' || AM.ph === 'walk') { hd = t('am_h_obs'); sb = t('am_s_obs'); } else { hd = t('am_h_idle'); sb = t('am_s_idle'); }
   $('#amHead').textContent = hd; $('#amSub').textContent = sb;
   amView(); $('#amCheckWrap').hidden = AM.mode !== 'checkin' || (AM.src === 'cam' && !(AM.live && AM.lv.model === 'ready')); $('#amSiteWrap').hidden = AM.mode !== 'site';
   if (AM.mode === 'checkin' && AM.src === 'cam') {
-    const L = AM.lv, inObs = L.ph === 'obs', R = L.res && L.ph === 'show' ? L.res : null; const eyeSt = R ? (R.face ? R.eyesOk : null) : (inObs && L.fc > 2 ? L.op / L.fc >= .6 : null);
-    $('#amChk').innerHTML = AM_KEYS.map(k => k === 'eyes' ? `<div class="${eyeSt == null ? '' : eyeSt ? 'ok' : 'bad'}"><b>${t('am_eyes')}</b><span>${eyeSt == null ? (R && !R.face ? t('am_noface') : t('am_wait')) : eyeSt ? t('am_open') : t('am_drowsy')}</span></div>` : `<div><b>${t('am_' + k)}</b><span style="color:var(--faint)">${t('am_na2')}</span></div>`).join('');
+    const L = AM.lv, inObs = L.ph === 'obs', R = L.res && L.ph === 'show' ? L.res : null, need = amNeed(), fr = L.fc || 0, ratio = (a, b) => (b > 0 ? a / b : null);
+    const st = { eyes: R ? (R.face ? R.ok.eyes : null) : (inObs && fr > 2 ? ratio(L.op, fr) >= .6 : null), attn: R ? (R.face ? R.ok.attn : null) : (inObs && fr > 2 ? ratio(L.att, fr) >= .6 : null),
+      helmet: R ? (R.face ? (R.view.helmet ? R.ok.helmet : 'view') : null) : (inObs && fr > 2 ? (ratio(L.hIn, fr) >= .6 ? ratio(L.hel, L.hIn) >= .6 : 'view') : null), vest: R ? (R.face ? (R.view.vest ? R.ok.vest : 'view') : null) : (inObs && fr > 2 ? (ratio(L.vIn, fr) >= .6 ? ratio(L.ves, L.vIn) >= .6 : 'view') : null) };
+    const cell = (k, goodT, badT) => { const v = st[k], nd = need[k]; const cls = v == null || !nd ? '' : v === true ? 'ok' : 'bad'; const txt = !nd ? t('am_na') : v == null ? (R && !R.face ? t('am_noface') : t('am_wait')) : v === 'view' ? t('tl_nv') : v ? goodT : badT; return `<div class="${cls}"><b>${t('am_' + k)}</b><span>${txt}</span></div>`; };
+    $('#amChk').innerHTML = cell('helmet', t('am_ok'), t('am_no')) + cell('vest', t('am_ok'), t('am_no')) + `<div><b>${t('am_mask')}</b><span style="color:var(--faint)">${t('am_na2')}</span></div>` + cell('eyes', t('am_open'), t('am_drowsy')) + cell('attn', t('am_attn_ok'), t('am_attn_bad'));
     $('#amProg').style.width = (inObs ? Math.min(100, (performance.now() - L.ph0) / (+$('#amDwell').value * 1000) * 100) : R ? 100 : 0) + '%';
   } else if (AM.mode === 'checkin') {
-    const need = amNeed(); $('#amChk').innerHTML = AM_KEYS.map(k => { const d = AM.per && AM.ph !== 'idle' && AM.ph !== 'walk' ? amDet(k) : null; const good = k === 'eyes' ? t('am_open') : t('am_ok'), badt = k === 'eyes' ? t('am_drowsy') : t('am_no');
+    const need = amNeed(); $('#amChk').innerHTML = AM_KEYS.map(k => { const d = AM.per && AM.ph !== 'idle' && AM.ph !== 'walk' ? amDet(k) : null; const good = k === 'eyes' ? t('am_open') : k === 'attn' ? t('am_attn_ok') : t('am_ok'), badt = k === 'eyes' ? t('am_drowsy') : k === 'attn' ? t('am_attn_bad') : t('am_no');
       const cls = d == null ? '' : (d || !need[k]) ? 'ok' : 'bad'; return `<div class="${cls}"><b>${t('am_' + k)}</b><span>${!need[k] ? t('am_na') : d == null ? t('am_wait') : d ? good : badt}</span></div>`; }).join('');
     const dw = +$('#amDwell').value * 1000; $('#amProg').style.width = (AM.ph === 'obs' ? Math.min(100, (performance.now() - AM.ph0) / dw * 100) : AM.ph === 'show' ? 100 : 0) + '%';
   } else {
     $('#amRoster').innerHTML = App.workers.map(wk => { const sv = sevOf(wk); return `<div class="${sv === 'safe' ? '' : sv}"><b>${wk.pseudo.replace('PSEUDO_', 'P-')}</b><br>${t('act_' + (wk.ME.state.label || 'stand'))} · ${Math.round(wk.risk)}</div>`; }).join('');
   }
   const lp = $('#amLamp'); lp.className = 'lamp ' + (AM.lamp === 'green' ? 'green' : AM.lamp === 'red' ? 'red' : ''); $('#amLampTxt').textContent = t('am_l_' + (AM.lamp === 'green' ? 'pass' : AM.lamp === 'red' ? 'fail' : 'idle'));
-  $('#amCount').textContent = AM.rec.length;
-  $('#amRec').innerHTML = AM.rec.length ? AM.rec.slice(0, 30).map(r => `<div class="rc"><span class="mono">#${r.n} ${r.t} ${r.id}</span><b>${r.pass ? pill('safe', t('am_pass') + (r.partial ? ' · ' + t('am_partial') : '')) : pill('danger', t('am_fail') + (r.bad.length ? ' · ' + r.bad.map(k => k === 'face' ? t('am_noface') : t('am_' + k)).join(',') : '') + (r.partial ? ' · ' + t('am_partial') : ''))}</b></div>`).join('') : `<div class="rc"><span>${t('am_no_rec')}</span></div>`;
+  $('#amCount').textContent = AM.rec.length; amRenderSup();
+  $('#amRec').innerHTML = AM.rec.length ? AM.rec.slice(0, 30).map(r => `<div class="rc"><span class="mono">#${r.n} ${r.t} ${r.id}</span><b>${r.override ? pill('warn', t('am_overridden')) + ' ' : ''}${r.pass ? pill('safe', t('am_pass') + (r.partial ? ' · ' + t('am_partial') : '')) : pill('danger', t('am_fail') + (r.bad.length ? ' · ' + r.bad.map(k => k === 'face' ? t('am_noface') : t('am_' + k)).join(',') : '') + (r.partial ? ' · ' + t('am_partial') : ''))}</b></div>`).join('') : `<div class="rc"><span>${t('am_no_rec')}</span></div>`;
   const sel = $('#amCam'); if (!sel.options.length || sel.dataset.lang !== String(App.lang) + '|' + AM.cams.length) { sel.dataset.lang = String(App.lang) + '|' + AM.cams.length; sel.innerHTML = (AM.cams.length ? AM.cams.map((c, i) => `<option value="${c.deviceId || '__cam'}">${t('am_cam_real')} · ${c.label || (t('am_cam_n') + ' ' + (i + 1))}</option>`).join('') : `<option value="__cam">${t('am_cam_real')}</option>`) + `<option value="sim">${t('am_cam_sim')}</option>`; }
   const want = AM.src === 'sim' ? 'sim' : (AM.dev && [...sel.options].some(o => o.value === AM.dev) ? AM.dev : sel.options[0].value); if (sel.value !== want) sel.value = want;
 }
@@ -3014,29 +3227,88 @@ function amLoadModel() {
   const L = AM.lv; if (L.model === 'loading' || L.model === 'ready') return; L.model = 'loading'; renderAm();
   mpCreate(amOnResults).then(fm => { L.fm = fm; L.model = 'ready'; renderAm(); }).catch(() => { L.model = 'fail'; renderAm(); });
 }
+function amSample(lm) {
+  const v = $('#amVid'); if (!v || !v.videoWidth) return null; const cv = AM.sc || (AM.sc = document.createElement('canvas')), W = 240, H = Math.max(1, Math.round(240 * v.videoHeight / v.videoWidth)); cv.width = W; cv.height = H;
+  try { const x = cv.getContext('2d', { willReadFrequently: true }); x.drawImage(v, 0, 0, W, H); const d = x.getImageData(0, 0, W, H), img = { data: d.data, w: W, h: H }, R = SU.regions(lm); return { h: SU.regionScore(img, R.helmet, 'helmet', AM.cal.helmet), v: SU.regionScore(img, R.vest, 'vest', AM.cal.vest) }; } catch (_) { return null; }
+}
 function amOnResults(r) {
-  const L = AM.lv, lm = r && r.multiFaceLandmarks && r.multiFaceLandmarks[0], obs = L.ph === 'obs';
-  if (obs) L.n++;
-  if (lm && lm.length > 380) { L.lm = lm; L.lastFace = Date.now(); const ear = amEar(lm); L.ear = ear; if (obs) { L.fc++; if (ear >= AM_EAR_CLOSED) L.op++; } } else { L.lm = null; L.ear = null; }
+  const L = AM.lv, lm = r && r.multiFaceLandmarks && r.multiFaceLandmarks[0], obs = L.ph === 'obs', pol = AM.polC || amPol(), now = performance.now() / 1000;
+  if (obs) L.n++; let o = { t: now, face: false };
+  if (lm && lm.length > 380) {
+    L.lm = lm; L.lastFace = Date.now(); const ear = amEar(lm); L.ear = ear; const raw = SU.headPose(lm), ps = SU.headPose(lm, AM.neutral), mr = SU.mar(lm), sm = amSample(lm); L.raw = raw;
+    const hv = !!(sm && sm.h.inView), vv = !!(sm && sm.v.inView), hOk = hv && sm.h.frac >= .35, vOk = vv && sm.v.frac >= .30;
+    o = { t: now, face: true, ear, pitch: ps.pitch, yaw: ps.yaw, mar: mr, helmet: hv ? hOk : null, vest: vv ? vOk : null }; L.o = o; L.sm = sm;
+    if (obs) { L.fc++; if (ear >= AM_EAR_CLOSED) L.op++; if (Math.abs(ps.yaw) <= pol.yaw && ps.pitch < pol.pitch) L.att++; if (hv) { L.hIn++; if (hOk) L.hel++; } if (vv) { L.vIn++; if (vOk) L.ves++; } }
+  } else { L.lm = null; L.ear = null; L.o = o; L.sm = null; }
+  if (AM.mode === 'watch' && AM.run && AM.mon) amMonPush(o);
 }
 function amDetectFrame(f) {
-  const L = AM.lv; if (!AM.run || L.model !== 'ready' || L.busy || AM.mode !== 'checkin') return; const now = performance.now(); if (now - L.lastSend < 90) return; L.lastSend = now; L.busy = true;
+  const L = AM.lv; if (!AM.run || L.model !== 'ready' || L.busy || AM.mode === 'site') return; const now = performance.now(); if (now - L.lastSend < 90) return; L.lastSend = now; L.busy = true;
   L.fm.send({ image: f.video }).then(() => { L.busy = false; }).catch(e => { L.busy = false; console.warn('detect', e); });
 }
 function amLiveStep() {
   const L = AM.lv, now = performance.now(); if (!AM.run || !AM.live || L.model !== 'ready') { if (AM.run && AM.live && L.model === 'idle') amLoadModel(); renderAm(); return; }
   const dwell = +$('#amDwell').value * 1000, recent = Date.now() - L.lastFace < 1200;
-  if (L.ph === 'wait') { if (recent) { L.ph = 'obs'; L.ph0 = now; L.n = 0; L.fc = 0; L.op = 0; L.res = null; } }
+  if (L.ph === 'wait') { if (recent) { L.ph = 'obs'; L.ph0 = now; L.n = 0; L.fc = 0; L.op = 0; L.att = 0; L.hIn = 0; L.hel = 0; L.vIn = 0; L.ves = 0; L.res = null; } }
   else if (L.ph === 'obs' && now - L.ph0 >= dwell) {
-    const R = amJudge(L.n, L.fc, L.op); L.res = R; L.ph = 'show'; L.ph0 = now;
-    const rc = { n: AM.rec.length + 1, t: new Date().toTimeString().slice(0, 8), id: 'LIVE', pass: R.pass, bad: R.pass ? [] : [R.face ? 'eyes' : 'face'], partial: true }; AM.rec.unshift(rc);
-    amSetLamp(R.pass ? 'green' : 'red'); amBeep(!R.pass); amSay(R.pass ? t('am_h_pass_e') : t('am_h_fail_e') + ' ' + (R.face ? t('am_drowsy') : t('am_noface')));
+    const R = SU.decide({ n: L.n, fc: L.fc, op: L.op, att: L.att, hIn: L.hIn, hel: L.hel, vIn: L.vIn, ves: L.ves }, amPol()); L.res = R; L.ph = 'show'; L.ph0 = now;
+    const rc = { n: AM.rec.length + 1, t: new Date().toTimeString().slice(0, 8), id: 'LIVE', pass: R.pass, bad: R.bad.slice(), partial: true, src: 'cam', pol: amPolTag(), items: R.ok }; AM.rec.unshift(rc); AM.pending = rc.pass ? null : rc; amAudit('checkin', { id: 'LIVE', result: rc.pass ? 'pass' : 'fail', detail: R.bad.join('|') });
+    amSetLamp(R.pass ? 'green' : 'red'); amBeep(!R.pass); amSay(R.pass ? t('am_h_pass_r') : t('am_h_fail_e') + ' ' + amBadNames(R.bad));
   } else if (L.ph === 'show' && now - L.ph0 > 3800) { L.ph = 'wait'; L.res = null; }
   renderAm();
 }
+
+/* ---- on-duty monitor, escalation, supervisor actions, audit */
+function amWatchStart() { const p = amPol(); AM.polC = p; AM.mon = SU.createMonitor(p); AM.lvl = 0; AM.stopReq = null; AM.simT0 = performance.now(); AM.simO = null; }
+function amEvent(k) { const ev = { time: amStamp(), type: k, sev: SU.SEV[k], src: AM.src === 'sim' ? 'sim' : 'cam' }; AM.ev.unshift(ev); if (AM.ev.length > 120) AM.ev.pop(); amAudit('event', { id: AM.src === 'sim' ? 'SIM' : 'LIVE', detail: k, result: 'sev' + SU.SEV[k] }); }
+function amMonPush(o) {
+  const fired = AM.mon.push(o); fired.forEach(amEvent); const lv = AM.mon.level();
+  if (lv !== AM.lvl) { const up = lv > AM.lvl; AM.lvl = lv; if (up) { amBeep(lv >= 2); if (lv >= 2) amSay(t('am_w_say' + lv)); amAudit('event', { id: AM.src === 'sim' ? 'SIM' : 'LIVE', detail: 'level_' + lv, result: 'level' }); } if (lv >= 3 && !AM.stopReq) AM.stopReq = { time: amStamp() }; }
+}
+function amSimObs(sc, T) {
+  const o = { face: true, ear: (T % 4) < .2 ? .1 : .3, pitch: 5 + 3 * Math.sin(T / 5), yaw: 10 * Math.sin(T / 7), mar: .1, helmet: true };
+  const run = (s, T0) => { const u = T - T0; if (s === 'drowsy') { if ((u % 8) < 3) o.ear = .05; if (u > 12) o.pitch = 18 + 6 * Math.sin(u); } else if (s === 'nod') { if (u > 8) o.pitch = 35; } else if (s === 'helmet') { if (u > 8) o.helmet = false; } else if (s === 'absent') { if (u > 8) o.face = false; } };
+  if (sc === 'mixed') { const seg = Math.floor(T / 40) % 4, u0 = Math.floor(T / 40) * 40; run(['drowsy', 'nod', 'helmet', 'absent'][seg], u0); if (T % 40 > 34) { o.face = true; } } else run(sc, 0);
+  if (sc === 'normal' && T % 53 > 50) o.mar = .8; return o;
+}
+function amWatchStep() {
+  if (!AM.run) { renderAm(); return; }
+  if (AM.src === 'sim') { if (!AM.mon) amWatchStart(); const T = (performance.now() - AM.simT0) / 1000, o = Object.assign({ t: T }, amSimObs(AM.scn, T)); AM.simO = o; amMonPush(o); }
+  else if (AM.live && AM.lv.model === 'idle') amLoadModel();
+  renderAm();
+}
+function amActDo(a, el) {
+  if (a === 'confirm' || a === 'false') { if (!AM.stopReq) return; amAudit('decision', { id: AM.src === 'sim' ? 'SIM' : 'LIVE', detail: a === 'confirm' ? 'stop_confirmed' : 'false_alarm', result: 'human', by: 'supervisor' }); AM.ev.unshift({ time: amStamp(), type: a === 'confirm' ? 'dec_confirm' : 'dec_false', sev: 0, src: 'human', dec: true }); AM.stopReq = null; if (a === 'confirm') amSay(t('dec_confirm')); renderAm(); }
+  else if (a === 'override') { const r = (($('#amReason') || {}).value || '').trim(); if (!r || !AM.pending) { const i = $('#amReason'); if (i) i.focus(); return; } AM.pending.override = { reason: r, time: amStamp() }; amAudit('decision', { id: AM.pending.id, detail: 'override:' + AM.pending.bad.join('|'), result: 'human', by: 'supervisor', reason: r }); AM.ev.unshift({ time: amStamp(), type: 'dec_override', sev: 0, src: 'human', dec: true }); AM.pending = null; renderAm(); }
+}
+function amCal(kind) {
+  const L = AM.lv, ok = amReal() && AM.live && L.lm && Date.now() - L.lastFace < 800;
+  if (kind === 'r') { AM.cal = { helmet: null, vest: null }; AM.neutral = { pitch: 0, yaw: 0 }; AM.calMsg = t('am_cal_clr'); }
+  else if (!ok) { AM.calMsg = t('am_cal_no'); }
+  else if (kind === 'n') { AM.neutral = { pitch: L.raw.pitch, yaw: L.raw.yaw }; AM.calMsg = t('am_cal_ok_n'); }
+  else { const s = L.sm && L.sm[kind === 'h' ? 'h' : 'v']; if (!s || !s.inView || !s.mean) AM.calMsg = t('am_cal_no'); else { AM.cal[kind === 'h' ? 'helmet' : 'vest'] = { h: s.mean.h, s: s.mean.s, v: s.mean.v }; AM.calMsg = t(kind === 'h' ? 'am_cal_ok_h' : 'am_cal_ok_v'); } }
+  amSaveCal(); renderAm();
+}
+function amRenderSup() {
+  const sup = $('#amSup'); if (!sup) return; sup.hidden = AM.mode === 'site';
+  $('#amPolTag').textContent = amPolTag(); $('#amScnRow').hidden = !(AM.mode === 'watch' && AM.src === 'sim');
+  const sc = $('#amScn'); if (sc && sc.value !== AM.scn) sc.value = AM.scn;
+  $('#amCalH').textContent = t('am_cal_h'); $('#amCalV').textContent = t('am_cal_v'); $('#amCalN').textContent = t('am_cal_n'); $('#amCalR').textContent = t('am_cal_r');
+  ['amCalH', 'amCalV', 'amCalN'].forEach(id => { $('#' + id).disabled = !(amReal() && AM.live); }); $('#amCalM').textContent = AM.calMsg || (AM.cal.helmet || AM.cal.vest ? '✓ ' : '') + t('am_cal_tip');
+  const o = AM.src === 'sim' ? (AM.mode === 'watch' ? AM.simO : null) : (AM.live ? AM.lv.o : null), S = AM.mon ? AM.mon.state : null, tile = (k, v, cls) => `<div class="${cls || ''}"><b>${t(k)}</b><span>${v}</span></div>`;
+  if (o && AM.run) { const pol = AM.polC || amPol(), pc = S && S.perclos != null ? Math.round(S.perclos * 100) + '%' : '–', hv = o.helmet == null ? t('tl_nv') : o.helmet ? t('tl_on') : t('tl_off'), vv = o.vest == null ? (AM.src === 'sim' ? '–' : t('tl_nv')) : o.vest ? t('tl_on') : t('tl_off');
+    $('#amLive').innerHTML = tile('tl_face', o.face ? t('tl_on') : t('tl_off'), o.face ? 'ok' : 'bad') + (o.face ? tile('tl_ear', o.ear.toFixed(2), o.ear < .2 ? 'bad' : 'ok') + tile('tl_perclos', pc, S && S.perclos != null && S.perclos >= pol.perclos ? 'bad' : '') + tile('tl_pitch', Math.round(o.pitch) + '°', o.pitch >= pol.pitch ? 'warn' : '') + tile('tl_yaw', Math.round(o.yaw) + '°', Math.abs(o.yaw) >= pol.yaw ? 'warn' : '') + tile('tl_mar', o.mar.toFixed(2), o.mar >= .6 ? 'warn' : '') + tile('tl_helmet', hv, o.helmet === false ? 'bad' : o.helmet ? 'ok' : '') + tile('tl_vest', vv, o.vest === false ? 'warn' : o.vest ? 'ok' : '') : ''); } else $('#amLive').innerHTML = '';
+  $('#amEsc').hidden = !(AM.mode === 'watch'); $('#amEsc').innerHTML = [0, 1, 2, 3].map(l => `<div class="${AM.run && AM.lvl === l ? 'on l' + l : ''}">${t('lv_t' + l)}</div>`).join('');
+  let act = ''; if (AM.stopReq) act += `<div class="amact" role="alert"><b>⚠ ${t('act_stop_t')}</b><p class="amnote" style="margin:4px 0">${t('act_stop_p')}</p><div class="amrow"><button class="btn sm" data-amact="confirm">${t('act_stop_ok')}</button><button class="btn sm" data-amact="false">${t('act_stop_fa')}</button></div></div>`;
+  if (AM.pending && !AM.pending.override) act += `<div class="amact w"><b>${t('act_ov_t')}: ${amBadNames(AM.pending.bad)}</b><p class="amnote" style="margin:4px 0">${t('act_ov_p')}</p><input type="text" id="amReason" maxlength="120" placeholder="${t('act_ov_ph')}" autocomplete="off"><button class="btn sm" data-amact="override">${t('act_ov_btn')}</button></div>`;
+  const sig = act.replace(/value="[^"]*"/, '') + '|' + App.lang; if (AM._actSig !== sig) { AM._actSig = sig; $('#amAct').innerHTML = act; }
+  const evh = AM.ev.length ? AM.ev.slice(0, 40).map(e => `<div class="rc"><span class="mono">${e.time.slice(11)} · ${e.src}</span><b>${e.dec ? pill('info', t(e.type)) : pill(e.sev >= 3 ? 'danger' : e.sev === 2 ? 'warn' : 'info', t('ev_' + e.type))}</b></div>`).join('') : `<div class="rc"><span>${t('am_ev_none')}</span></div>`; if (AM._evSig !== evh) { AM._evSig = evh; $('#amEv').innerHTML = evh; }
+  const n = AM.rec.length, ps = AM.rec.filter(r => r.pass).length, ov = AM.rec.filter(r => r.override).length, miss = {}; AM.rec.forEach(r => r.bad.forEach(k => { miss[k] = (miss[k] || 0) + 1; })); const top = Object.entries(miss).sort((a, b) => b[1] - a[1])[0];
+  $('#amStats').innerHTML = `<span>${t('st_n')} <b>${n}</b></span><span>${t('st_rate')} <b>${n ? Math.round(ps / n * 100) + '%' : '–'}</b></span><span>${t('st_ov')} <b>${ov}</b></span><span>${t('st_ev')} <b>${AM.ev.filter(e => !e.dec).length}</b></span><span>${t('st_top')} <b>${top ? t('am_' + top[0]) + ' ×' + top[1] : '–'}</b></span>`;
+}
 function amErrKey(e) { const n = e && e.name || ''; if (n === 'CameraLost') return 'am_err_lost'; return n === 'NotAllowedError' || n === 'PermissionDeniedError' ? 'am_err_denied' : n === 'NotFoundError' || n === 'DevicesNotFoundError' || n === 'OverconstrainedError' ? 'am_err_none' : n === 'NotReadableError' || n === 'TrackStartError' || n === 'AbortError' ? 'am_err_busy' : n === 'SecurityError' || n === 'NoMediaDevices' ? 'am_err_blocked' : 'am_err_other'; }
 function amView() {
-  const real = AM.mode === 'checkin' && AM.src === 'cam', v = $('#amVid'), o = $('#amOvl');
+  const real = amReal(), v = $('#amVid'), o = $('#amOvl');
   v.hidden = !(real && AM.live); let ic = '', ti = '', tx = '', cls = '';
   if (real && !AM.live) { if (AM.req) { ic = '⏳'; ti = t('am_req_t'); tx = t('am_req_p'); } else if (AM.err) { ic = '⚠'; ti = t('am_err_t'); tx = t(amErrKey(AM.err)); cls = ' err'; } else { ic = '📷'; ti = t('am_hint_t'); tx = t('am_hint_p'); } }
   o.hidden = !ti; o.className = 'amovl' + cls; o.innerHTML = ti ? `<div class="ic" aria-hidden="true">${ic}</div><b>${ti}</b><p>${tx}</p>` : '';
@@ -3065,23 +3337,28 @@ async function amUseCamera(id) {
   } catch (e) { AM.live = false; AM.req = false; AM.err = e || { name: 'error' }; if (AM.stream) { AM.stream.getTracks().forEach(tr => tr.stop()); AM.stream = null; } renderAm(); return false; }
 }
 function amStopCamera() { AM.fid++; if (AM.stream) AM.stream.getTracks().forEach(tr => tr.stop()); AM.stream = null; AM.live = false; const v = $('#amVid'); if (v) { try { v.pause(); } catch (_) {} v.srcObject = null; } }
-function amHalt() { AM.lv.ph = 'wait'; AM.lv.res = null; const was = AM.run || AM.live; AM.run = false; AM.ph = 'idle'; AM.lamp = 'idle'; amStopCamera(); AM.req = false; if (was) renderAm(); }
+function amHalt() { AM.stopReq = null; AM.lvl = 0; AM.lv.ph = 'wait'; AM.lv.res = null; const was = AM.run || AM.live; AM.run = false; AM.ph = 'idle'; AM.lamp = 'idle'; amStopCamera(); AM.req = false; if (was) renderAm(); }
 async function amCsv() {
-  const rows = [['no', 'time', 'pseudo_id', 'result', 'missing']].concat(AM.rec.slice().reverse().map(r => [r.n, r.t, r.id, r.pass ? 'pass' : 'fail', r.bad.join('|')])), data = rows.map(r => r.join(',')).join('\n');
-  try { const d = window.claude && await window.claude.use('downloads'); if (d) { await d.save({ filename: 'checkin-records.csv', data }); return; } } catch (_) {}
-  try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], { type: 'text/csv' })); a.download = 'checkin-records.csv'; a.click(); } catch (_) {}
+  const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"', cols = ['time', 'kind', 'pseudo_id', 'source', 'detail', 'result', 'by', 'reason', 'policy'];
+  const rows = [cols.join(',')].concat(AM.audit.map(r => [r.time, r.kind, r.id, r.src, r.detail, r.result, r.by, r.reason, r.pol].map(q).join(','))), data = '﻿' + rows.join('\n');
+  try { const d = window.claude && await window.claude.use('downloads'); if (d) { await d.save({ filename: 'safeloop-audit.csv', data }); return; } } catch (_) {}
+  try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], { type: 'text/csv;charset=utf-8' })); a.download = 'safeloop-audit.csv'; a.click(); } catch (_) {}
 }
 function bindAm() {
   $('#amStart').addEventListener('click', async () => {
     if (AM.run) { amHalt(); renderAm(); return; }
     if (AM.lv.model === 'fail') AM.lv.model = 'idle';
-    if (AM.mode === 'checkin' && AM.src === 'cam') { if (AM.req) return; const ok = await amUseCamera(AM.dev); if (!ok) return; }
+    if (amReal()) { if (AM.req) return; const ok = await amUseCamera(AM.dev); if (!ok) return; }
+    if (AM.mode === 'watch') amWatchStart();
     AM.run = true; AM.ph = 'idle'; amBeep(false); renderAm();
   });
-  document.querySelectorAll('[data-am]').forEach(b => b.addEventListener('click', () => { const was = AM.mode; AM.mode = b.dataset.am; AM.ph = 'idle'; if (AM.mode !== 'checkin' && AM.live) { amStopCamera(); AM.run = false; } AM.err = null; renderAm(); }));
+  document.querySelectorAll('[data-am]').forEach(b => b.addEventListener('click', () => { const was = AM.mode; AM.mode = b.dataset.am; AM.ph = 'idle'; if (AM.live || AM.run || was !== AM.mode) { amStopCamera(); AM.run = false; AM.lamp = 'idle'; AM.stopReq = null; AM.lvl = 0; } AM.err = null; renderAm(); }));
   $('#amCam').addEventListener('change', async e => { const v = e.target.value; AM.err = null; if (v === 'sim') { AM.src = 'sim'; amStopCamera(); AM.ph = 'idle'; renderAm(); } else { AM.src = 'cam'; AM.dev = v === '__cam' ? null : v; amStopCamera(); AM.ph = 'idle'; if (AM.run) { const ok = await amUseCamera(AM.dev); if (!ok) AM.run = false; } renderAm(); } });
   $('#amFs').addEventListener('click', () => { const el = document.querySelector('.amstage'); try { (el.requestFullscreen || el.webkitRequestFullscreen).call(el); } catch (_) {} });
   $('#amTest').addEventListener('click', () => { amSetLamp('red'); amBeep(true); setTimeout(() => { amSetLamp('green'); amBeep(false); }, 900); });
+  amPolLoad(); AM_POLIDS.forEach(id => $('#' + id).addEventListener('change', () => { amPolSave(); renderAm(); }));
+  $('#amScn').addEventListener('change', e => { AM.scn = e.target.value; if (AM.run && AM.mode === 'watch' && AM.src === 'sim') amWatchStart(); });
+  $('#amSup').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.amact) amActDo(b.dataset.amact); else if (b.id === 'amCalH') amCal('h'); else if (b.id === 'amCalV') amCal('v'); else if (b.id === 'amCalN') amCal('n'); else if (b.id === 'amCalR') amCal('r'); });
   $('#amCsv').addEventListener('click', amCsv); $('#amDwell').addEventListener('change', renderAm); $('#amNeedMask').addEventListener('change', renderAm);
   window.SafeLoopCam.onFrame(amDetectFrame);
   try { navigator.mediaDevices.addEventListener('devicechange', amScan); } catch (_) {}
@@ -3096,12 +3373,14 @@ const SP = { fid: 0, live: false, lastFace: 0, src: 'sim', run: false, lay: 'h',
 const SP_KP = ['head', 'neck', 'sh', 'hip', 'elb', 'wr', 'kL', 'fL', 'kR', 'fR'];
 function spCtl(kv) {
   const [k, v] = kv.split(':');
-  if (k === 'lay') { SP.lay = v; } else if (k === 'wid') { SP.wid = v; }
+  if (k === 'mode') { if (v !== SP.mode) { if (SP.run) spHalt(); SP.mode = v; SP.net.st = 'off'; SP.net.err = ''; $$('[data-sp^="mode:"]').forEach(b => b.classList.toggle('on', b.dataset.sp === 'mode:' + v)); const nn = $('#spNet'); nn.hidden = v !== 'relay'; if (v === 'relay') { $('#spUrl').value = SP.net.url; $('#spRoom').value = SP.net.room; $('#spRole').value = SP.net.role; } } }
+  else if (k === 'lay') { SP.lay = v; } else if (k === 'wid') { SP.wid = v; }
   const g = $('#spGrid'); g.classList.toggle('v', SP.lay === 'v'); const f = SP.wid === 'narrow' ? ['.75fr', '1.25fr'] : SP.wid === 'wide' ? ['1.25fr', '.75fr'] : ['1fr', '1fr']; g.style.setProperty('--l', f[0]); g.style.setProperty('--r', f[1]);
   $$('#spLaySeg button').forEach(b => b.classList.toggle('on', b.dataset.sp === 'lay:' + SP.lay)); $$('#spWidSeg button').forEach(b => b.classList.toggle('on', b.dataset.sp === 'wid:' + SP.wid)); spRender();
 }
 function spBeep() { try { if (!$('#spSnd').checked) return; const A = SP.ac || (SP.ac = new (window.AudioContext || window.webkitAudioContext)()), o = A.createOscillator(), g = A.createGain(); o.connect(g); g.connect(A.destination); o.type = 'square'; o.frequency.value = 660; g.gain.value = .05; o.start(); o.stop(A.currentTime + .25); } catch (_) {} }
 function spSend(dir, obj) {
+  if (spRelayOn()) { const n = SP.net; if (!n.ws || n.ws.readyState !== 1 || n.st !== 'open') return; const s = JSON.stringify({ t: dir === 'up' ? 'pk' : 'ack', d: obj }), now = performance.now(); n.ws.send(s); (dir === 'up' ? SP.tx : SP.dn).push({ t: now, b: s.length }); SP.flight.push({ t0: now, dur: Math.max(180, (n.rtt || 300) / 2), dir, r: Math.random() }); if (SP.flight.length > 80) SP.flight.shift(); return; }
   const s = JSON.stringify(obj), now = performance.now(), dur = 380 + Math.random() * 240; (dir === 'up' ? SP.tx : SP.dn).push({ t: now, b: s.length });
   SP.flight.push({ t0: now, dur, dir, r: Math.random() }); if (SP.flight.length > 80) SP.flight.shift();
   setTimeout(() => { if (!SP.run) return; if (dir === 'up') spReceive(JSON.parse(s)); else spAckIn(JSON.parse(s)); }, dur);
@@ -3129,15 +3408,17 @@ function spBuild() {
   return { v: 1, seq, t: +App.T.toFixed(1), src: 'sim', id: w.pseudo, kp: SP_KP.map(k => [+sk[k].x.toFixed(2), +sk[k].y.toFixed(2)]), trunk: Math.round(th), arm: Math.round(arm), hr: Math.round(e.hr || 0), bp: [Math.round(e.sys || 0), Math.round(e.dia || 0)], temp: +(e.core || 0).toFixed(1), ppe: { helmet: +SP.ppeS.helmet.toFixed(2), vest: +SP.ppeS.vest.toFixed(2), mask: +SP.ppeS.mask.toFixed(2) }, pos: [Math.round((w.ME.state.T.x || 0) * 10) / 10, Math.round((w.ME.state.T.y || 0) * 10) / 10] };
 }
 function spTick() {
-  if (!SP.run || App.view !== 'split') return; const pk = spBuild(); if (pk) { SP.last = pk; spSend('up', pk); }
-  const now = performance.now(); if (SP.rx && now - SP.lastAck > 770) { SP.lastAck = now; spSend('dn', { ack: SP.rx.seq, cmd: SP.alarm ? 'STOP' : 'OK' }); }
+  if (!SP.run || App.view !== 'split') return; if (!spIsCtl()) { const pk = spBuild(); if (pk) { SP.last = pk; if (!(spRelayOn() && SP.net.role === 'control')) spSend('up', pk); } }
+  if (spRelayOn() && SP.net.role === 'site') { spRender(); return; }
+  const now = performance.now(); if (SP.rx && now - SP.lastAck > 770) { SP.lastAck = now; spSend('dn', { ack: SP.rx.seq, cmd: spRelayOn() ? SP.cmd : (SP.alarm ? 'STOP' : 'OK') }); }
+  if (spIsCtl()) SP.stale = !!SP.rx && now - SP.rxT > 3000;
   spRender();
 }
 function spRate(arr) { const now = performance.now(); while (arr.length && now - arr[0].t > 2000) arr.shift(); const n = arr.length, b = arr.reduce((s, q) => s + q.b, 0); return { pps: n / 2, kbs: b / 2 / 1024 }; }
 function spRender() {
   const up = spRate(SP.tx), dn = spRate(SP.dn);
   $('#spStat').innerHTML = `${t('sp_stat_up')} <b>${up.pps.toFixed(1)}</b> ${t('sp_pps')} · <b>${up.kbs.toFixed(1)}</b> KB/s · ${t('sp_stat_dn')} <b>${dn.pps.toFixed(1)}</b> ${t('sp_pps')} · ${t('sp_video')} <b>${SP.vidBytes} B</b>`;
-  const rl = $('#spRelay'); if (rl) rl.title = t('sp_relay_tip');
+  spNetStatus(); const cb = $('#spCmdBox'); if (cb) { const show = spIsCtl() && SP.net.st === 'open'; cb.hidden = !show; if (show) { $('#spCmd').textContent = SP.cmd === 'STOP' ? t('sp_cmd_clear') : t('sp_cmd_stop'); $('#spCmdN').textContent = t('sp_cmd_n'); } }
   $('#spStart').textContent = SP.run ? t('sp_stop') : t('sp_start'); $('#spLNote').textContent = t('sp_l_note');
   const so = $('#spSrc'); if (so.dataset.lang !== String(App.lang)) { so.dataset.lang = String(App.lang); so.innerHTML = `<option value="sim">${t('sp_src_sim')}</option><option value="cam">${t('sp_src_cam')}</option>`; so.value = SP.src; }
   const tog = $('#spTog'); if (SP.src === 'sim') { tog.hidden = false; tog.innerHTML = [['helmet', 'sp_tog_h'], ['vest', 'sp_tog_v'], ['mask', 'sp_tog_m']].map(([k, l]) => `<button class="btn sm ${SP.off[k] ? 'on' : ''}" data-spt="${k}">${t(l)}</button>`).join(''); } else tog.hidden = true;
@@ -3146,12 +3427,14 @@ function spRender() {
 }
 function spView() {
   const ov = $('#spOvl'), v = $('#spVid'), cam = SP.src === 'cam'; v.hidden = !(cam && SP.live); let ti = '', tx = '', cls = '';
-  if (cam && !SP.live) { if (SP.req) { ti = '⏳ ' + t('am_req_t'); tx = t('am_req_p'); } else if (SP.err) { ti = '⚠ ' + t('sp_err'); tx = t(amErrKey(SP.err)); cls = ' err'; } else { ti = t('sp_idle_t'); tx = t('sp_idle_p'); } }
+  if (spIsCtl()) { ti = SP.run ? (SP.rx ? '' : t('sp_ctl_wait')) : t('sp_idle_t'); tx = SP.run ? t('sp_ctl_nov') : t('sp_ctl_nov'); v.hidden = true; }
+  else if (cam && !SP.live) { if (SP.req) { ti = '⏳ ' + t('am_req_t'); tx = t('am_req_p'); } else if (SP.err) { ti = '⚠ ' + t('sp_err'); tx = t(amErrKey(SP.err)); cls = ' err'; } else { ti = t('sp_idle_t'); tx = t('sp_idle_p'); } }
   else if (!SP.run && !cam) { ti = t('sp_idle_t'); tx = t('sp_idle_p'); }
   ov.hidden = !ti; ov.className = 'amovl' + cls; ov.innerHTML = ti ? `<b>${ti}</b><p>${tx}</p>` : '';
 }
 function spDrawCam() {
   const cv = $('#spCam'); if (!cv || !cv.offsetParent) return; const s = sized(cv); if (!s) return; const { x, w, h } = s, mono = getComputedStyle(document.body).getPropertyValue('--f-mono');
+  if (spIsCtl()) { x.fillStyle = '#0d1522'; x.fillRect(0, 0, w, h); x.fillStyle = '#7f8da3'; x.font = '12px ' + mono; x.textAlign = 'center'; x.fillText(t('sp_ctl_nov'), w / 2, h / 2); x.textAlign = 'left'; return; }
   if (SP.src === 'cam') {
     if (!SP.live) return; x.fillStyle = 'rgba(0,0,0,.55)'; x.fillRect(0, 0, w, 24); x.fillStyle = '#fff'; x.font = '11px ' + mono; x.fillText('LIVE · LOCAL ONLY · ' + (SP.model === 'ready' ? 'FACE MESH' : SP.model === 'loading' ? 'LOADING MODEL…' : 'NO DETECTOR'), 8, 16);
     const lm = SP.lm; if (SP.model === 'ready' && lm && Date.now() - SP.lastFace < 400) { const v = $('#spVid'), vw = v.videoWidth || 1, vh = v.videoHeight || 1, sc = Math.max(w / vw, h / vh), ox = (w - vw * sc) / 2, oy = (h - vh * sc) / 2; let x0 = 1, y0 = 1, x1 = 0, y1 = 0; lm.forEach(q => { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); }); const closed = SP.ear < AM_EAR_CLOSED; x.strokeStyle = closed ? '#ff5a5a' : '#2fd07a'; x.lineWidth = 2; x.strokeRect(ox + x0 * vw * sc, oy + y0 * vh * sc, (x1 - x0) * vw * sc, (y1 - y0) * vh * sc); x.fillStyle = x.strokeStyle; AM_EYE_L.concat(AM_EYE_R).forEach(i => { x.beginPath(); x.arc(ox + lm[i].x * vw * sc, oy + lm[i].y * vh * sc, 2.5, 0, 6.29); x.fill(); }); x.font = '12px ' + mono; x.fillText('face · eyes ' + (closed ? 'closed' : 'open'), ox + x0 * vw * sc, Math.max(36, oy + y0 * vh * sc - 6)); }
@@ -3183,7 +3466,7 @@ function spDrawPanel() {
   const pk = SP.rx, rd = (k, v) => `<div>${t(k)}<b>${v}</b></div>`;
   $('#spRead').innerHTML = !pk ? '' : pk.kp ? rd('sp_trunk', pk.trunk + '°') + rd('sp_arm', pk.arm + '°') + rd('sp_hr', pk.hr) + rd('sp_bp', pk.bp[0] + '/' + pk.bp[1]) + rd('sp_temp', pk.temp + '°C') : pk.face ? rd('sp_roll', pk.face.roll + '°') + rd('sp_eye_s', pk.face.open ? t('sp_open') : t('sp_closed')) + `<div>EAR<b>${pk.face.ear}</b></div>` : rd('sp_eye_s', '–');
   const pp = $('#spPpe'); pp.innerHTML = pk && pk.ppe ? SP_PPE.map(k => { const v = pk.ppe[k], ok = v >= .5; return `<div class="row"><span>${t('sp_' + k)}</span><div class="bar"><i style="width:${Math.round(v * 100)}%;background:${ok ? 'var(--safe)' : 'var(--danger)'}"></i></div><b class="mono">${Math.round(v * 100)}%</b></div>`; }).join('') : `<p class="note">${pk ? t('sp_ppe_na') : ''}</p>`;
-  $('#spAlert').innerHTML = SP.alarm ? `<div class="sp-alert" role="alert">⚠ ${SP.why}</div>` : '';
+  $('#spAlert').innerHTML = (SP.alarm ? `<div class="sp-alert" role="alert">⚠ ${SP.why}</div>` : '') + (spIsCtl() && SP.stale ? `<div class="sp-alert" role="alert">⚠ ${t('sp_nosig')}</div>` : '');
   $('#spPkt').textContent = pk ? JSON.stringify(pk) : '';
 }
 function spWire() {
@@ -3207,11 +3490,13 @@ async function spStartCam() {
     SP.stream = s; const v = $('#spVid'); v.srcObject = s; await v.play(); SP.live = true; SP.req = false; s.getVideoTracks().forEach(tr => tr.addEventListener('ended', () => { if (SP.stream === s) { spStopCam(); spHalt(); SP.err = { name: 'CameraLost' }; spRender(); } })); spFrameLoop(); spLoadModel(); spRender(); return true;
   } catch (e) { SP.live = false; SP.req = false; SP.err = e || { name: 'error' }; spStopCam(); spRender(); return false; }
 }
-function spHalt() { SP.run = false; spStopCam(); SP.req = false; SP.rx = null; SP.last = null; SP.alarm = false; SP.ack = ''; SP.tx = []; SP.dn = []; SP.flight = []; if (SP.timer) { clearInterval(SP.timer); SP.timer = null; } spRender(); }
+function spHalt() { spNetClose(); SP.cmd = 'OK'; SP.cmdSeen = null; SP.stale = false; SP.run = false; spStopCam(); SP.req = false; SP.rx = null; SP.last = null; SP.alarm = false; SP.ack = ''; SP.tx = []; SP.dn = []; SP.flight = []; if (SP.timer) { clearInterval(SP.timer); SP.timer = null; } spRender(); }
 async function spToggle() {
   if (SP.run) { spHalt(); return; }
   if (SP.model === 'fail') SP.model = 'idle';
-  if (SP.src === 'cam') { if (SP.req) return; const ok = await spStartCam(); if (!ok) return; }
+  if (spRelayOn()) { if (!spNetCheck()) return; }
+  if (SP.src === 'cam' && !spIsCtl()) { if (SP.req) return; const ok = await spStartCam(); if (!ok) return; }
+  if (spRelayOn()) spNetOpen();
   SP.run = true; SP.vidBytes = 0; SP.timer = setInterval(spTick, 110); requestAnimationFrame(spWire); spRender();
 }
 
@@ -3244,6 +3529,69 @@ Object.assign(D, {
   lb_b: ['B · 肌骨 REBA 5 项', 'B · 5 REBA checks', 'B · REBA 5건']
 });
 
+
+
+Object.assign(D, {
+  am_m3: ['作业监控', 'On-duty monitor', '작업 중 감시'], am_m3s: ['持续 · 眼睛/姿态/安全帽', 'continuous · eyes/posture/helmet', '지속 · 눈/자세/안전모'],
+  am_attn: ['注意力', 'Attention', '주의'], am_attn_ok: ['正视前方', 'Facing front', '정면 주시'], am_attn_bad: ['低头/转头', 'Head down/away', '숙임/시선 이탈'], am_face: ['未检测到人脸', 'No face', '얼굴 없음'], am_helmet_view: ['安全帽区域不在画面内', 'Helmet area not in view', '안전모 영역이 화면 밖'], am_vest_view: ['背心区域不在画面内', 'Vest area not in view', '조끼 영역이 화면 밖'],
+  am_h_pass_r: ['签到通过：在场、眼睛、注意力、护具均合格', 'Check-in passed: presence, eyes, attention and PPE all OK', '체크인 통과: 재실·눈·주의·보호구 모두 양호'],
+  am_s_part2: ['真实摄像头：人脸/眼睛/头部姿态是模型实测；安全帽和背心是颜色启发式（不是训练好的检测模型）；口罩没有检测。', 'Real camera: face, eyes and head pose are model measurements; helmet and vest use a colour heuristic (not a trained detector); mask is not checked.', '실제 카메라: 얼굴·눈·머리 자세는 모델 측정, 안전모·조끼는 색상 휴리스틱(학습된 검출기 아님), 마스크는 미검사.'],
+  am_sup: ['监管体系：策略 · 实时指标 · 升级 · 审计', 'Supervision: policy · live metrics · escalation · audit', '감독 체계: 정책 · 실시간 지표 · 단계 상승 · 감사'],
+  am_p_closed: ['闭眼阈值', 'Eye-closure limit', '눈 감음 기준'], am_p_perclos: ['PERCLOS 疲劳线', 'PERCLOS fatigue line', 'PERCLOS 피로 기준'], am_p_down: ['低头阈值', 'Head-down limit', '숙임 기준'], am_p_away: ['转头阈值', 'Looking-away limit', '시선 이탈 기준'], am_p_absent: ['离岗阈值', 'Absence limit', '이탈 기준'],
+  am_p_note: ['策略保存在本机浏览器；监控在“开始”时读取，改完后重新开始才生效。记录里会写入当时的策略。', 'Policy is saved in this browser and read when monitoring starts; restart to apply changes. Each record stores the policy used.', '정책은 이 브라우저에 저장되며 시작할 때 읽습니다. 변경 후 다시 시작해야 적용되며 기록에 정책이 남습니다.'],
+  am_scn: ['模拟情景', 'Simulated scenario', '모의 시나리오'], am_sc_normal: ['正常作业', 'Normal work', '정상 작업'], am_sc_drowsy: ['疲劳打瞌睡', 'Drowsy', '졸음'], am_sc_nod: ['长时间低头', 'Head down', '장시간 숙임'], am_sc_helmet: ['中途摘下安全帽', 'Helmet removed', '안전모 벗음'], am_sc_absent: ['离开岗位', 'Leaves post', '자리 이탈'], am_sc_mixed: ['混合（依次出现）', 'Mixed (in turn)', '혼합(순차)'],
+  am_cal_h: ['校准安全帽颜色', 'Calibrate helmet colour', '안전모 색상 보정'], am_cal_v: ['校准背心颜色', 'Calibrate vest colour', '조끼 색상 보정'], am_cal_n: ['设为“正前方”', 'Set as “facing front”', '“정면”으로 설정'], am_cal_r: ['清除校准', 'Clear calibration', '보정 초기화'],
+  am_cal_ok_h: ['已记录安全帽颜色。', 'Helmet colour saved.', '안전모 색상을 저장했습니다.'], am_cal_ok_v: ['已记录背心颜色。', 'Vest colour saved.', '조끼 색상을 저장했습니다.'], am_cal_ok_n: ['已记录当前头部朝向为正前方。', 'Current head direction saved as facing front.', '현재 머리 방향을 정면으로 저장했습니다.'], am_cal_no: ['需要先打开真实摄像头并让脸和对应区域进入画面。', 'Open the real camera and bring your face and the region into view first.', '실제 카메라를 켜고 얼굴과 해당 영역이 보이게 하세요.'], am_cal_clr: ['校准已清除，恢复默认颜色规则。', 'Calibration cleared; default colour rules restored.', '보정을 지웠습니다. 기본 규칙으로 복귀.'],
+  am_cal_tip: ['先戴好安全帽/背心，再点校准；不校准时只认黄、橙、红、蓝、绿等饱和色，白色帽子或同色背景会判错。', 'Put the helmet/vest on first, then calibrate. Without calibration only saturated yellow, orange, red, blue or green is recognised; white hats and same-colour backgrounds will be misjudged.', '안전모·조끼를 착용한 뒤 보정하세요. 보정하지 않으면 노랑·주황·빨강·파랑·초록 등 채도 높은 색만 인식하며 흰색 모자나 같은 색 배경은 오판합니다.'],
+  am_evlog: ['事件与决定（审计日志）', 'Events and decisions (audit log)', '이벤트·결정(감사 로그)'], am_stats: ['统计', 'Statistics', '통계'], am_ev_none: ['还没有事件。', 'No events yet.', '이벤트가 없습니다.'],
+  ev_closed_long: ['长时间闭眼', 'Eyes closed too long', '장시간 눈 감음'], ev_drowsy: ['PERCLOS 疲劳', 'PERCLOS fatigue', 'PERCLOS 피로'], ev_head_down: ['持续低头', 'Head down', '장시간 숙임'], ev_away: ['长时间转头', 'Looking away', '시선 이탈'], ev_yawn: ['打哈欠', 'Yawn', '하품'], ev_absent: ['离开岗位', 'Left the post', '자리 이탈'], ev_helmet_off: ['安全帽脱落', 'Helmet off', '안전모 벗음'],
+  lv_t0: ['0 正常', '0 Normal', '0 정상'], lv_t1: ['1 提醒', '1 Reminder', '1 알림'], lv_t2: ['2 警告', '2 Warning', '2 경고'], lv_t3: ['3 停工请求', '3 Stop-work request', '3 작업중지 요청'],
+  am_w_l0: ['作业监控中 · 状态正常', 'Monitoring · all normal', '감시 중 · 정상'], am_w_l1: ['提醒：请注意', 'Reminder: please take care', '알림: 주의하세요'], am_w_l2: ['警告：已记录并通知主管', 'Warning: logged and supervisor notified', '경고: 기록 및 관리자 통보'], am_w_l3: ['停工请求：等待主管确认', 'Stop-work request: waiting for the supervisor', '작업중지 요청: 관리자 확인 대기'],
+  am_w_s: ['系统只发出提醒和请求。是否停工、是否拨打 119，由人决定，系统不会自动报警。', 'The system only reminds and requests. Whether to stop work or call 119 is a human decision; nothing is called automatically.', '시스템은 알림과 요청만 합니다. 작업 중지·119 신고는 사람이 결정하며 자동 신고하지 않습니다.'],
+  am_w_idle: ['作业监控：点击“开始”', 'On-duty monitor: press Start', '작업 감시: “시작”을 누르세요'], am_w_idle_s: ['持续检查眼睛、头部姿态、哈欠、在岗和安全帽；真实摄像头或模拟情景都可以。', 'Continuously checks eyes, head pose, yawning, presence and helmet, with the real camera or a simulated scenario.', '눈·머리 자세·하품·재석·안전모를 지속 확인합니다(실제 카메라 또는 모의 시나리오).'],
+  am_w_say2: ['警告，请注意安全。', 'Warning. Please take care.', '경고. 안전에 주의하세요.'], am_w_say3: ['请求停止作业，等待主管确认。', 'Stop-work requested. Waiting for the supervisor.', '작업 중지를 요청합니다. 관리자 확인 대기.'],
+  tl_face: ['在场', 'Present', '재석'], tl_ear: ['眼睛开合 EAR', 'Eye EAR', '눈 EAR'], tl_perclos: ['PERCLOS(60 s)', 'PERCLOS (60 s)', 'PERCLOS(60초)'], tl_pitch: ['低头角', 'Pitch', '숙임각'], tl_yaw: ['转头角', 'Yaw', '좌우각'], tl_mar: ['张口 MAR', 'Mouth MAR', '입 MAR'], tl_helmet: ['安全帽', 'Helmet', '안전모'], tl_vest: ['背心', 'Vest', '조끼'], tl_nv: ['看不到', 'not visible', '안 보임'], tl_on: ['有', 'yes', '있음'], tl_off: ['无', 'no', '없음'],
+  act_stop_t: ['停工请求', 'Stop-work request', '작업중지 요청'], act_stop_p: ['系统检测到持续或重复的危险行为。请主管到现场确认后决定。', 'Sustained or repeated unsafe behaviour was detected. A supervisor should confirm on site and decide.', '지속·반복되는 위험 행동이 감지되었습니다. 관리자가 현장 확인 후 결정하세요.'], act_stop_ok: ['确认停工', 'Confirm stop', '중지 확정'], act_stop_fa: ['判定为误报', 'Mark false alarm', '오경보로 처리'],
+  act_ov_t: ['签到未通过', 'Check-in failed', '체크인 미통과'], act_ov_p: ['主管可以人工放行，必须写明理由；放行会记入审计日志。', 'A supervisor may let the person in by hand; a reason is required and the override is written to the audit log.', '관리자가 수동 승인할 수 있으며 사유가 필요하고 감사 로그에 기록됩니다.'], act_ov_ph: ['放行理由（必填）', 'Reason (required)', '사유(필수)'], act_ov_btn: ['主管人工放行', 'Supervisor override', '관리자 수동 승인'],
+  dec_confirm: ['主管确认停工', 'Supervisor confirmed stop', '관리자 중지 확정'], dec_false: ['主管判定误报', 'Supervisor: false alarm', '관리자: 오경보'], dec_override: ['主管人工放行', 'Supervisor override', '관리자 수동 승인'], am_overridden: ['人工放行', 'Overridden', '수동 승인'],
+  st_n: ['签到', 'Check-ins', '체크인'], st_rate: ['通过率', 'Pass rate', '통과율'], st_ov: ['人工放行', 'Overrides', '수동 승인'], st_ev: ['监控事件', 'Monitor events', '감시 이벤트'], st_top: ['最常缺项', 'Most missed', '최다 누락'],
+  am_sup_note: ['<b>诚实说明：</b>真实摄像头下，人脸、眼睛（EAR）、头部姿态、哈欠（MAR）、PERCLOS 由 MediaPipe Face Mesh 在本机计算，但我没有在真人脸上验证过它们；头部姿态是近似值，需要用“设为正前方”校准。安全帽和背心是颜色启发式，不是训练过的检测模型：白色帽子、与帽子同色的背景会误判，需要校准；帽子或背心不在画面里时会判“看不到”，不会猜。口罩在真实摄像头下不检测。PERCLOS 15% 等阈值是常见经验值，不是针对你们现场的结论。模拟场景里的内容仍是模拟的。升级只到“停工请求”，由人确认；系统从不自动报警。', '<b>Honest limits:</b> with the real camera, face, eyes (EAR), head pose, yawning (MAR) and PERCLOS are computed on this device by MediaPipe Face Mesh, but I have not validated them on real faces; head pose is approximate and needs “facing front” calibration. Helmet and vest use a colour heuristic, not a trained detector: white hats and same-colour backgrounds will be misjudged without calibration, and when the helmet or vest area is out of frame the result is “not visible”, never a guess. Masks are not checked with the real camera. Thresholds such as PERCLOS 15% are common rules of thumb, not conclusions for your site. Simulated scenarios are simulated. Escalation stops at a stop-work request that a person confirms; the system never calls anyone automatically.', '<b>정직한 한계:</b> 실제 카메라에서 얼굴·눈(EAR)·머리 자세·하품(MAR)·PERCLOS는 MediaPipe Face Mesh가 이 기기에서 계산하지만 실제 얼굴로 검증하지 않았고, 머리 자세는 근사값이라 “정면” 보정이 필요합니다. 안전모·조끼는 학습된 검출기가 아닌 색상 휴리스틱이라 흰색 모자·같은 색 배경은 보정 없이는 오판하며, 영역이 화면 밖이면 추측하지 않고 “안 보임”으로 처리합니다. 마스크는 검사하지 않습니다. PERCLOS 15% 등은 일반적 경험값입니다. 모의 시나리오는 모의입니다. 단계 상승은 사람이 확인하는 작업중지 요청까지이며 자동 신고하지 않습니다.']
+});
+
+/* ============================================================ relay (real cross-device transport for the split view) */
+SP.mode = 'browser'; SP.net = { ws: null, st: 'off', role: 'site', room: '', url: '', rtt: null, peers: { site: 0, control: 0 }, err: '', timer: null, ping: null, want: false }; SP.cmd = 'OK';
+try { const q = JSON.parse(localStorage.getItem('shk-relay') || '{}'); SP.net.url = q.url || ''; SP.net.room = q.room || ''; SP.net.role = q.role === 'control' ? 'control' : 'site'; } catch (_) {}
+const spRelayOn = () => SP.mode === 'relay';
+const spIsCtl = () => spRelayOn() && SP.net.role === 'control';
+function spNetClose() { const n = SP.net; n.want = false; clearTimeout(n.timer); clearInterval(n.ping); n.timer = n.ping = null; if (n.ws) { n.ws.onopen = n.ws.onmessage = n.ws.onclose = n.ws.onerror = null; try { n.ws.close(); } catch (_) {} } n.ws = null; n.st = 'off'; n.rtt = null; n.peers = { site: 0, control: 0 }; }
+function spNetOpen() {
+  const n = SP.net; n.want = true; n.st = 'conn'; n.err = ''; let ws; try { ws = new WebSocket(n.url); } catch (e) { n.st = 'err'; n.err = String(e && e.message || e); spRender(); return; } n.ws = ws;
+  ws.onopen = () => { ws.send(JSON.stringify({ t: 'join', room: n.room, role: n.role })); };
+  ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (_) { return; }
+    if (m.t === 'joined') { n.st = 'open'; clearInterval(n.ping); const p = () => { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'ping', ts: performance.now() })); }; p(); n.ping = setInterval(p, 2000); }
+    else if (m.t === 'pong') { n.rtt = Math.round(performance.now() - m.ts); }
+    else if (m.t === 'peers') { n.peers = { site: m.site, control: m.control }; }
+    else if (m.t === 'error') { n.st = 'err'; n.err = m.code === 'site_busy' ? t('sp_ne_busy') : m.code === 'room_full' ? t('sp_ne_full') : t('sp_ne_room'); n.want = false; try { ws.close(); } catch (_) {} }
+    else if (m.t === 'pk' && n.role === 'control' && m.d) { const b = ev.data.length; SP.tx.push({ t: performance.now(), b }); SP.flight.push({ t0: performance.now(), dur: 260, dir: 'up', r: Math.random() }); if (SP.flight.length > 80) SP.flight.shift(); spReceive(m.d); }
+    else if (m.t === 'ack' && n.role === 'site' && m.d) { SP.dn.push({ t: performance.now(), b: ev.data.length }); if (m.d.cmd === 'STOP' && SP.cmdSeen !== 'STOP') spBeep(); SP.cmdSeen = m.d.cmd; spAckIn(m.d); }
+    spRender(); };
+  ws.onclose = () => { if (n.ws !== ws) return; n.ws = null; clearInterval(n.ping); n.peers = { site: 0, control: 0 }; n.rtt = null; if (n.want && SP.run) { n.st = 'retry'; clearTimeout(n.timer); n.timer = setTimeout(() => { if (n.want && SP.run) spNetOpen(); }, 2000); } else if (n.st !== 'err') n.st = 'off'; spRender(); };
+  ws.onerror = () => { if (n.st === 'conn') { n.err = 'WebSocket'; } };
+  spRender();
+}
+function spNetCheck() {
+  const n = SP.net; n.url = ($('#spUrl').value || '').trim(); n.room = ($('#spRoom').value || '').trim(); n.role = $('#spRole').value === 'control' ? 'control' : 'site';
+  try { localStorage.setItem('shk-relay', JSON.stringify({ url: n.url, room: n.room, role: n.role })); } catch (_) {}
+  const ok = /^wss:\/\//i.test(n.url) || (/^ws:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(n.url)); if (!ok) { n.st = 'err'; n.err = t('sp_ne_url'); spRender(); return false; }
+  if (!/^[A-Za-z0-9_-]{6,32}$/.test(n.room)) { n.st = 'err'; n.err = t('sp_ne_room'); spRender(); return false; }
+  return true;
+}
+function spNetStatus() {
+  const n = SP.net, el = $('#spNetSt'); if (!el) return; const ctl = n.role === 'control';
+  let s = n.st === 'open' ? '● ' + t('sp_ns_open') : n.st === 'conn' ? t('sp_ns_conn') : n.st === 'retry' ? t('sp_ns_retry') : n.st === 'err' ? '⚠ ' + t('sp_ns_err') + n.err : t('sp_ns_off');
+  if (n.st === 'open') s += ' · ' + (ctl ? (n.peers.site ? t('sp_ns_peer_site') : t('sp_ns_peer_nosite')) : (n.peers.control ? t('sp_ns_peer_ctl') : t('sp_ns_peer_noctl'))) + (n.rtt != null ? ' · ' + t('sp_ns_rtt') + ' ' + n.rtt + ' ms' : '');
+  el.textContent = s; el.style.color = n.st === 'err' ? 'var(--danger)' : n.st === 'open' ? 'var(--safe)' : '';
+}
 
 /* ============================================================ musculoskeletal view */
 App.msk = { mode: 'auto', built: false, man: { trunk: 25, neck: 15, ua: 40, la: 80, wr: 0, knee: 0, load: 0, coupling: 0, trunkTwist: 0, neckTwist: 0, raised: 0, abducted: 0, supported: 0, unilateral: 0, wristDev: 0, shock: 0, staticHold: 0, repeat: 0, rapid: 0 } };
@@ -3328,6 +3676,7 @@ document.addEventListener('change', e => { const c = e.target.closest('[data-mfg
 document.addEventListener('click', e => {
   const mb = e.target.closest('[data-msk]'); if (mb) { const [k, v] = mb.dataset.msk.split(':'); if (k === 'mode') { App.msk.mode = v; renderMsk(); } return; }
   const lk = e.target.closest('a[href^="#"]'); if (lk) { const id = lk.getAttribute('href').slice(1); if (VIEWS.includes(id)) { e.preventDefault(); go(id); return; } }
+  if (e.target.closest('#spCmd')) { SP.cmd = SP.cmd === 'STOP' ? 'OK' : 'STOP'; if (SP.rx) spSend('dn', { ack: SP.rx.seq, cmd: SP.cmd }); spRender(); return; }
   const sb = e.target.closest('[data-sp]'); if (sb && !sb.disabled) { spCtl(sb.dataset.sp); return; }
   if (e.target.closest('[data-spretry]')) { SP.model = 'idle'; spLoadModel(); return; }
   const st = e.target.closest('[data-spt]'); if (st) { SP.off[st.dataset.spt] = !SP.off[st.dataset.spt]; spRender(); return; }
@@ -3382,4 +3731,8 @@ window.__SHK_APP = App;
 
 </script>
 
-</body></html>
+<script>
+if ('serviceWorker' in navigator && location.protocol === 'https:') { window.addEventListener('load', () => { try { navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (_) {} }); }
+</script>
+</body>
+</html>
