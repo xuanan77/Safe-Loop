@@ -2131,6 +2131,51 @@ function createMonitor(cfg) {
   }
   return { push, level, state: S, cfg };
 }
+
+/* ---- whole-body skeleton (MediaPipe Pose, 33 landmarks, image space). Works on ONE camera view, so angles are 2-D projections. */
+const BI = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]; /* nose, shL, shR, elL, elR, wrL, wrR, hipL, hipR, knL, knR, anL, anR */
+const BN = ['nose', 'shL', 'shR', 'elL', 'elR', 'wrL', 'wrR', 'hipL', 'hipR', 'knL', 'knR', 'anL', 'anR'];
+const interior2 = (p, a, b) => { const ux = a.x - p.x, uy = a.y - p.y, vx = b.x - p.x, vy = b.y - p.y; return deg(Math.acos(cl((ux * vx + uy * vy) / ((Math.hypot(ux, uy) * Math.hypot(vx, vy)) || 1e-9), -1, 1))); };
+function bodyFrame(lm, aspect, minVis) {
+  aspect = aspect || 1; minVis = minVis == null ? .5 : minVis; if (!lm || lm.length < 29) return null;
+  const P = BI.map(i => ({ x: lm[i].x * aspect, y: lm[i].y, v: lm[i].visibility == null ? 1 : lm[i].visibility })), g = k => P[BN.indexOf(k)], ok = k => g(k).v >= minVis;
+  if (!(ok('shL') && ok('shR') && ok('hipL') && ok('hipR'))) return null;
+  const sm = { x: (g('shL').x + g('shR').x) / 2, y: (g('shL').y + g('shR').y) / 2 }, hm = { x: (g('hipL').x + g('hipR').x) / 2, y: (g('hipL').y + g('hipR').y) / 2 }, torso = Math.hypot(sm.x - hm.x, sm.y - hm.y);
+  if (torso < 0.03) return null; /* too small / degenerate */
+  const trunk = deg(Math.atan2(Math.abs(sm.x - hm.x), -(sm.y - hm.y))) + (sm.y > hm.y ? 0 : 0), trunkA = sm.y - hm.y > 0 ? 180 - deg(Math.atan2(Math.abs(sm.x - hm.x), (sm.y - hm.y))) : trunk;
+  const down = { x: hm.x - sm.x, y: hm.y - sm.y }, aDown = Math.atan2(down.x, down.y);
+  const ua = (s, e) => { if (!(ok(s) && ok(e))) return null; const a = { x: g(e).x - g(s).x, y: g(e).y - g(s).y }; let d = deg(Math.atan2(a.x, a.y) - aDown); while (d > 180) d -= 360; while (d < -180) d += 360; return Math.abs(d); };
+  const uaL = ua('shL', 'elL'), uaR = ua('shR', 'elR'), uaMax = Math.max(uaL == null ? -1 : uaL, uaR == null ? -1 : uaR);
+  const flex = (a, b, c) => (ok(a) && ok(b) && ok(c)) ? 180 - interior2(g(b), g(a), g(c)) : null, elL = flex('shL', 'elL', 'wrL'), elR = flex('shR', 'elR', 'wrR'), knL = flex('hipL', 'knL', 'anL'), knR = flex('hipR', 'knR', 'anR');
+  const mx = (a, b) => (a == null && b == null) ? null : Math.max(a == null ? -1 : a, b == null ? -1 : b);
+  let neck = null; if (ok('nose')) { const hv = { x: g('nose').x - sm.x, y: g('nose').y - sm.y }, d = deg(Math.atan2(hv.x, -hv.y)) - deg(Math.atan2(sm.x - hm.x, -(sm.y - hm.y))); neck = Math.abs(((d + 540) % 360) - 180); }
+  const headLow = ok('nose') ? g('nose').y >= hm.y - 0.15 * torso : false;
+  const f = { pts: P.map(p => [p.x, p.y]), vis: P.map(p => (p.v >= minVis ? 1 : 0)), torso, hm, sm, ang: { trunk: trunkA, ua: uaMax < 0 ? null : uaMax, la: mx(elL, elR), knee: mx(knL, knR), neck }, headLow };
+  f.act = classifyBody(f); return f;
+}
+function classifyBody(f) { const a = f.ang;
+  if (a.trunk >= 70 && f.headLow) return 'lying'; if (a.knee != null && a.knee >= 65) return 'squat'; if (a.trunk >= 30) return 'bend'; if (a.ua != null && a.ua >= 100) return 'armsup'; return 'stand'; }
+const BSEV = { fall_suspect: 3, still_long: 2, bend_long: 2, squat_long: 2, overhead_long: 1, absent_body: 3 };
+function createBodyMonitor(cfg) {
+  cfg = Object.assign({ lying: 1.5, still: 20, bend: 15, squat: 15, overhead: 20, absent: 5, stillSpeed: 0.08 }, cfg || {}); const S = { prev: null, speed: 0, stillFor: 0, cond: {}, events: [], t: 0, act: null, last: null };
+  const track = (k, on, t, need) => { const c = S.cond[k] || (S.cond[k] = { since: null, fired: false }); if (on) { if (c.since == null) c.since = t; if (!c.fired && t - c.since >= need) { c.fired = true; S.events.push({ t, type: k, sev: BSEV[k] }); return true; } } else { c.since = null; c.fired = false; } return false; };
+  function push(f, t) {
+    const fired = []; S.t = t; const dt = S.prev ? Math.max(1e-3, t - S.prev.t) : 0;
+    if (f) { if (S.prev && S.prev.f && dt < 1) { let d = 0, n = 0; f.pts.forEach((p, i) => { if (f.vis[i] && S.prev.f.vis[i]) { d += Math.hypot(p[0] - S.prev.f.pts[i][0], p[1] - S.prev.f.pts[i][1]); n++; } }); if (n >= 6) { const inst = d / n / f.torso / dt; S.speed = S.speed * .85 + inst * .15; } } S.act = f.act; S.last = f;
+      S.stillFor = S.speed < cfg.stillSpeed ? (S.stillFor + dt) : 0; }
+    else { S.act = null; }
+    if (track('fall_suspect', !!f && f.act === 'lying', t, cfg.lying)) fired.push('fall_suspect');
+    if (track('still_long', !!f && f.act !== 'lying' && S.stillFor >= cfg.still, t, 0.01)) fired.push('still_long');
+    if (track('bend_long', !!f && f.act === 'bend', t, cfg.bend)) fired.push('bend_long');
+    if (track('squat_long', !!f && f.act === 'squat', t, cfg.squat)) fired.push('squat_long');
+    if (track('overhead_long', !!f && f.ang.ua != null && f.ang.ua >= 90, t, cfg.overhead)) fired.push('overhead_long');
+    if (track('absent_body', !f, t, cfg.absent)) fired.push('absent_body');
+    S.prev = { t, f }; return fired;
+  }
+  function level() { const t = S.t, score = S.events.filter(e => t - e.t <= 300).reduce((a, e) => a + e.sev, 0), active = Object.entries(S.cond).filter(([k, c]) => c.fired && c.since != null).map(([k]) => k), crit = active.some(k => BSEV[k] >= 3);
+    if (score >= 6 || (crit && score >= 4) || (S.cond.fall_suspect && S.cond.fall_suspect.fired && t - S.cond.fall_suspect.since >= cfg.lying * 3)) return 3; if (crit || score >= 3) return 2; if (score >= 1 || active.length) return 1; return 0; }
+  return { push, level, state: S, cfg };
+}
 /* ---- tests */
 function suite() {
   const S = [], add = (id, name, expect, run) => S.push({ id, name, expect, run }), o3 = (zh, en, ko) => ({ zh, en, ko });
@@ -2163,9 +2208,36 @@ function suite() {
   add('T46', o3('升级梯度：提醒 → 警告 → 停工请求', 'Escalation: reminder → warning → stop-work request', '단계 상승: 알림 → 경고 → 작업중지 요청'), o3('单次轻微=1 级，关键行为=2 级，持续/重复=3 级；恢复后回落；系统只“请求”，不自动报警', 'Minor = level 1, critical = 2, sustained/repeated = 3; falls back after recovery; the system only requests, never calls automatically', '경미=1, 중요=2, 지속/반복=3, 회복 후 하강; 시스템은 요청만 하고 자동 신고 없음'), () => {
     const r1 = run(t => ({ mar: t >= 5 && t < 8 ? .8 : .1 }), 20).m.level(), r2 = run(t => ({ helmet: !(t >= 5 && t < 12) }), 12).m.level(), r3 = run(t => ({ ear: t >= 5 && t < 15 ? .05 : .3 }), 15).m.level(), r4 = run(t => ({ ear: t >= 5 && t < 8 ? .05 : .3 }), 400).m.level();
     return { pass: r1 === 1 && r2 === 2 && r3 === 3 && r4 === 0, obs: o3(`打哈欠 ${r1} · 摘帽 ${r2} · 持续闭眼 ${r3} · 5 分钟后 ${r4}`, `yawn ${r1} · helmet off ${r2} · sustained closure ${r3} · after 5 min ${r4}`, `하품 ${r1} · 안전모 ${r2} · 지속 감음 ${r3} · 5분 후 ${r4}`) }; });
+
+  /* synthetic whole-body landmarks (image space, y down). trunk = lean in image plane (deg), arm = upper-arm elevation, knee = knee flexion */
+  const poseLm = (o) => { o = Object.assign({ trunk: 0, arm: 0, knee: 0, lying: false, dx: 0, dy: 0 }, o); const lm = []; for (let i = 0; i < 33; i++) lm.push({ x: .5, y: .5, visibility: 1 }); const T = .25, hip = { x: .5 + o.dx, y: .6 + o.dy }, r = a => a * Math.PI / 180;
+    const ux = Math.sin(r(o.trunk)), uy = -Math.cos(r(o.trunk)), sh = { x: hip.x + T * ux, y: hip.y + T * uy }, perp = { x: -uy, y: ux }; if (o.lying) { }
+    lm[11] = { x: sh.x - .06 * perp.x, y: sh.y - .06 * perp.y, visibility: 1 }; lm[12] = { x: sh.x + .06 * perp.x, y: sh.y + .06 * perp.y, visibility: 1 }; lm[23] = { x: hip.x - .05 * perp.x, y: hip.y - .05 * perp.y, visibility: 1 }; lm[24] = { x: hip.x + .05 * perp.x, y: hip.y + .05 * perp.y, visibility: 1 };
+    const aDown = Math.atan2(-ux, -uy); const armDir = a => ({ x: Math.sin(aDown + r(a)), y: Math.cos(aDown + r(a)) }); [[11, 13, 15, 1], [12, 14, 16, -1]].forEach(([s, e, w, sg]) => { const d = armDir(sg * o.arm), el = { x: lm[s].x + .12 * d.x, y: lm[s].y + .12 * d.y }; lm[e] = Object.assign({ visibility: 1 }, el); lm[w] = { x: el.x + .11 * d.x, y: el.y + .11 * d.y, visibility: 1 }; });
+    [[23, 25, 27], [24, 26, 28]].forEach(([h, k, a]) => { const kn = { x: lm[h].x, y: lm[h].y + .13 }, ang = r(o.knee); lm[k] = { x: kn.x, y: kn.y, visibility: 1 }; lm[a] = { x: kn.x - .13 * Math.sin(ang) * 1, y: kn.y + .13 * Math.cos(ang), visibility: 1 }; });
+    lm[0] = { x: sh.x + .06 * ux, y: sh.y + .06 * uy, visibility: 1 }; return lm; };
+  add('T47', o3('全身骨架：角度还原', 'Whole-body skeleton: angle recovery', '전신 골격: 각도 복원'), o3('躯干倾斜、上臂抬起、膝屈曲恢复误差 ≤ 3°', 'Trunk lean, arm elevation and knee flexion recovered within 3°', '몸통 기울기·팔 거상·무릎 굴곡 오차 ≤ 3°'), () => {
+    let mx = 0; for (let tr = 0; tr <= 60; tr += 10) { const f = bodyFrame(poseLm({ trunk: tr })); mx = Math.max(mx, Math.abs(f.ang.trunk - tr)); }
+    for (let a = 0; a <= 150; a += 15) { const f = bodyFrame(poseLm({ arm: a })); mx = Math.max(mx, Math.abs(f.ang.ua - a)); }
+    for (let k = 0; k <= 90; k += 15) { const f = bodyFrame(poseLm({ knee: k })); mx = Math.max(mx, Math.abs(f.ang.knee - k)); }
+    const hid = poseLm({}); hid[25].visibility = .1; hid[26].visibility = .1; const fh = bodyFrame(hid), none = poseLm({}); none[11].visibility = .1; const fn = bodyFrame(none);
+    return { pass: mx <= 3 && fh.ang.knee == null && fn === null, obs: o3(`最大误差 ${mx.toFixed(2)}° · 看不到膝盖时给“无数据” ${fh.ang.knee == null ? '✓' : '✗'} · 看不到肩膀时不判定 ${fn === null ? '✓' : '✗'}（合成骨架，未用真人验证）`, `max error ${mx.toFixed(2)}° · knees hidden → no value ${fh.ang.knee == null ? '✓' : '✗'} · shoulder hidden → no result ${fn === null ? '✓' : '✗'} (synthetic skeletons, not validated on people)`, `최대 오차 ${mx.toFixed(2)}° · 무릎 가림→값 없음 ${fh.ang.knee == null ? '✓' : '✗'} · 어깨 가림→판정 없음 ${fn === null ? '✓' : '✗'} (합성 골격, 실제 미검증)`) }; });
+  add('T48', o3('动作分类', 'Action classification', '동작 분류'), o3('站立 / 弯腰 / 下蹲 / 举手 / 躺倒 分类全部正确', 'Standing / bending / squatting / arms up / lying all classified correctly', '서기/굽힘/쪼그림/팔 들기/눕기 모두 정확'), () => {
+    const c = o => bodyFrame(poseLm(o)).act, lying = (() => { const lm = poseLm({ trunk: 88 }); return bodyFrame(lm).act; })();
+    const r = { stand: c({}), bend: c({ trunk: 45 }), squat: c({ knee: 80 }), armsup: c({ arm: 140 }), lying }; const ok = r.stand === 'stand' && r.bend === 'bend' && r.squat === 'squat' && r.armsup === 'armsup' && r.lying === 'lying';
+    return { pass: ok, obs: o3(Object.values(r).join(' / '), Object.values(r).join(' / '), Object.values(r).join(' / ')) }; });
+  const runB = (gen, secs, cfg) => { const m = createBodyMonitor(cfg), ev = []; for (let k = 0; k <= secs * 10; k++) { const t = k / 10, o = gen(t), f = o === null ? null : bodyFrame(poseLm(o)); m.push(f, t).forEach(x => ev.push({ type: x, t })); } return { m, ev }; };
+  const walk = t => ({ trunk: 4 + 3 * Math.sin(t * 2), arm: 25 * Math.sin(t * 3), knee: 20 + 20 * Math.sin(t * 3), dx: 0.12 * Math.sin(t * 0.8) });
+  add('T49', o3('骨架监控：正常活动不误报', 'Skeleton monitor: no false alarms on normal activity', '골격 감시: 정상 활동 오경보 없음'), o3('10 分钟走动、取物、短暂弯腰，0 事件', '10 min of walking, reaching and brief bending: 0 events', '걷기·팔 뻗기·짧은 굽힘 10분: 이벤트 0'), () => {
+    const r = runB(t => (t % 60 > 50 ? { trunk: 40, arm: 20 } : walk(t)), 600); return { pass: r.ev.length === 0 && r.m.level() === 0, obs: o3(`事件 ${r.ev.length} · 等级 ${r.m.level()}`, `events ${r.ev.length} · level ${r.m.level()}`, `이벤트 ${r.ev.length} · 단계 ${r.m.level()}`) }; });
+  add('T50', o3('骨架监控：倒地、静止、长时间姿势检出', 'Skeleton monitor: fall, stillness and held postures detected', '골격 감시: 쓰러짐·정지·장시간 자세 검출'), o3('倒地 1.5 s、完全不动 20 s、弯腰/下蹲 15 s、举手 20 s、离开画面 5 s 在阈值 + 0.2 s 内检出（静止因速度平滑最多滞后 2.5 s）；倒地升到 3 级', 'Lying 1.5 s, motionless 20 s, bend/squat 15 s, arms up 20 s and leaving the frame 5 s detected within threshold + 0.2 s (stillness may lag 2.5 s because speed is smoothed); lying escalates to level 3', '쓰러짐 1.5초, 무동작 20초, 굽힘/쪼그림 15초, 팔 들기 20초, 화면 이탈 5초 검출, 쓰러짐은 3단계'), () => {
+    const lat = (gen, type, thr, secs) => { const r = runB(gen, secs), e = r.ev.find(x => x.type === type); return e ? +(e.t - 10 - thr).toFixed(2) : null; };
+    const a = lat(t => (t >= 10 ? { trunk: 88 } : walk(t)), 'fall_suspect', 1.5, 30), b = lat(t => (t >= 10 ? { trunk: 3 } : walk(t)), 'still_long', 20, 60), c = lat(t => (t >= 10 ? { trunk: 50 } : walk(t)), 'bend_long', 15, 40), d = lat(t => (t >= 10 ? { knee: 85 } : walk(t)), 'squat_long', 15, 40), e = lat(t => (t >= 10 ? { arm: 140 } : walk(t)), 'overhead_long', 20, 50), f = lat(t => (t >= 10 ? null : walk(t)), 'absent_body', 5, 30);
+    const lvl = runB(t => (t >= 10 ? { trunk: 88 } : walk(t)), 30).m.level(); const ok = [a, c, d, e, f].every(v => v != null && v >= -.01 && v <= .21) && b != null && b >= -.01 && b <= 2.5 && lvl === 3; /* stillness uses a smoothed speed, so it may lag by up to 2.5 s */
+    return { pass: ok, obs: o3(`延迟 倒地 ${a} · 静止 ${b} · 弯腰 ${c} · 下蹲 ${d} · 举手 ${e} · 离开 ${f} s · 倒地等级 ${lvl}`, `latency lying ${a} · still ${b} · bend ${c} · squat ${d} · arms ${e} · left ${f} s · lying level ${lvl}`, `지연 쓰러짐 ${a} · 정지 ${b} · 굽힘 ${c} · 쪼그림 ${d} · 팔 ${e} · 이탈 ${f} s · 단계 ${lvl}`) }; });
   return S;
 }
-const API = { POL, headPose, mar, regions, rgb2hsv, regionScore, decide, createMonitor, SEV, suite };
+const API = { bodyFrame, classifyBody, createBodyMonitor, BSEV, BI, BN, POL, headPose, mar, regions, rgb2hsv, regionScore, decide, createMonitor, SEV, suite };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.SHKS = API;
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -2290,7 +2362,7 @@ const D = {
 Object.assign(D, {
   n_home: ['总览', 'Overview', '개요'],
   n_floor: ['定位与姿势', 'Tracking & posture', '위치·자세'],
-  lb_a: ['A · 场景测试 46 项', 'A · 46 scenario tests', 'A · 시나리오 테스트 46건'],
+  lb_a: ['A · 场景测试 50 项', 'A · 50 scenario tests', 'A · 시나리오 테스트 50건'],
   lb_a_p: ['每项有固定随机种子和预期结果：运动伪影、传感器冲突、蓝牙断连、云端断连、隐私载荷、定位围栏、姿势、派单、回放等。', 'Each has a fixed seed and an expected result: motion artifacts, sensor conflict, BLE drop, cloud outage, privacy payload, geofence, posture, dispatch, replay and more.', '각 항목은 고정 시드와 기대 결과를 가집니다: 모션 아티팩트, 센서 충돌, BLE·클라우드 단절, 개인정보, 지오펜스, 자세, 배정, 리플레이 등.'],
   fl_eye: ['定位与姿势', 'TRACKING & POSTURE', '위치·자세'], fl_title: ['每个戴表的人在哪，在做什么', 'Where every wearer is, and what they are doing', '착용자의 위치와 동작'],
   fl_lead: ['UWB 定位把所有佩戴手表的作业者放在同一张平面图上，手表 IMU 识别动作和躯干前倾，视频只提取骨架关键点来交叉验证。进入危险区之前、姿势负荷累积到伤害之前，系统先预警。',
@@ -3391,12 +3463,18 @@ function spReceive(pk) {
   let alarm = false, why = '';
   if (pk.ppe) { const miss = SP_PPE.filter(k => pk.ppe[k] < .5 && k !== 'mask'); if (miss.length) { alarm = true; why = t('sp_alert_ppe') + ' ' + miss.map(k => t('sp_' + k)).join(' · '); } }
   if (pk.face && pk.face.open === false) { if (!SP.closedSince) SP.closedSince = performance.now(); if (performance.now() - SP.closedSince > 1500) { alarm = true; why = t('sp_alert_eye'); } } else SP.closedSince = 0;
+  if (pk.bev && pk.bev.length) { alarm = true; why = t('sp_alert_body') + ' ' + pk.bev.map(k => t('bev_' + k)).join(' · '); }
   if (alarm && !SP.alarm) spBeep(); SP.alarm = alarm; SP.why = why;
 }
 const SP_PPE = ['helmet', 'vest', 'mask'];
+const spCam = () => SP.src === 'cam' || SP.src === 'body';
 function spBuild() {
   const seq = ++SP.seq;
-  if (SP.src === 'cam') {
+  if (SP.src === 'body') {
+    if (!SP.live) return null; const f = SP.bf, ok = f && Date.now() - SP.bfT < 600, S = SP.bm ? SP.bm.state : null, r1 = v => v == null ? null : +v.toFixed(1), pk = { v: 1, seq, t: +(Date.now() / 1000).toFixed(2), src: 'cam', mode: 'body', blvl: SP.bLvl, bev: S ? Object.entries(S.cond).filter(([k, c]) => c.fired && c.since != null).map(([k]) => k) : [] };
+    pk.body = ok ? { pts: f.pts.map(p => [+p[0].toFixed(3), +p[1].toFixed(3)]), vis: f.vis.join(''), ang: { trunk: r1(f.ang.trunk), ua: r1(f.ang.ua), la: r1(f.ang.la), knee: r1(f.ang.knee), neck: r1(f.ang.neck) }, act: f.act, still: +(S ? S.stillFor : 0).toFixed(1), speed: +(S ? S.speed : 0).toFixed(2), reba: SP.reba ? { s: SP.reba.final, l: SP.reba.level } : null } : null; return pk;
+  }
+  if (spCam()) {
     if (!SP.live) return null; const lm = SP.lm, ok = lm && Date.now() - SP.lastFace < 500, pk = { v: 1, seq, t: +(Date.now() / 1000).toFixed(2), src: 'cam' };
     if (ok) { const P = i => [+lm[i].x.toFixed(3), +lm[i].y.toFixed(3)]; pk.face = { kp: [1, 33, 133, 362, 263, 61, 291, 152].map(P), ear: +SP.ear.toFixed(2), open: SP.ear >= AM_EAR_CLOSED, roll: +SP.roll.toFixed(1) }; }
     else pk.face = null; return pk;
@@ -3419,14 +3497,14 @@ function spRender() {
   const up = spRate(SP.tx), dn = spRate(SP.dn);
   $('#spStat').innerHTML = `${t('sp_stat_up')} <b>${up.pps.toFixed(1)}</b> ${t('sp_pps')} · <b>${up.kbs.toFixed(1)}</b> KB/s · ${t('sp_stat_dn')} <b>${dn.pps.toFixed(1)}</b> ${t('sp_pps')} · ${t('sp_video')} <b>${SP.vidBytes} B</b>`;
   spNetStatus(); const cb = $('#spCmdBox'); if (cb) { const show = spIsCtl() && SP.net.st === 'open'; cb.hidden = !show; if (show) { $('#spCmd').textContent = SP.cmd === 'STOP' ? t('sp_cmd_clear') : t('sp_cmd_stop'); $('#spCmdN').textContent = t('sp_cmd_n'); } }
-  $('#spStart').textContent = SP.run ? t('sp_stop') : t('sp_start'); $('#spLNote').textContent = t('sp_l_note');
-  const so = $('#spSrc'); if (so.dataset.lang !== String(App.lang)) { so.dataset.lang = String(App.lang); so.innerHTML = `<option value="sim">${t('sp_src_sim')}</option><option value="cam">${t('sp_src_cam')}</option>`; so.value = SP.src; }
+  $('#spStart').textContent = SP.run ? t('sp_stop') : t('sp_start'); $('#spLNote').textContent = SP.src === 'body' ? t('sp_body_note') : t('sp_l_note');
+  const so = $('#spSrc'); if (so.dataset.lang !== String(App.lang)) { so.dataset.lang = String(App.lang); so.innerHTML = `<option value="sim">${t('sp_src_sim')}</option><option value="cam">${t('sp_src_cam')}</option><option value="body">${t('sp_src_body')}</option>`; so.value = SP.src; }
   const tog = $('#spTog'); if (SP.src === 'sim') { tog.hidden = false; tog.innerHTML = [['helmet', 'sp_tog_h'], ['vest', 'sp_tog_v'], ['mask', 'sp_tog_m']].map(([k, l]) => `<button class="btn sm ${SP.off[k] ? 'on' : ''}" data-spt="${k}">${t(l)}</button>`).join(''); } else tog.hidden = true;
-  const ms = $('#spModel'); if (ms) { ms.hidden = SP.src !== 'cam' || !SP.live; ms.innerHTML = SP.model === 'loading' ? t('sp_model_load') : SP.model === 'fail' ? `⚠ ${t('sp_model_fail')} <span class="mono">[${MP.err}]</span> <button class="btn sm" data-spretry="1">${t('sp_retry')}</button>` : SP.model === 'ready' ? '✓ ' + t('sp_model_ok') : ''; }
+  const ms = $('#spModel'); if (ms) { ms.hidden = !spCam() || !SP.live; ms.innerHTML = SP.model === 'loading' ? t(SP.src === 'body' ? 'sp_model_load_b' : 'sp_model_load') : SP.model === 'fail' ? `⚠ ${t('sp_model_fail')} <span class="mono">[${MP.err}]</span> <button class="btn sm" data-spretry="1">${t('sp_retry')}</button>` : SP.model === 'ready' ? '✓ ' + t(SP.src === 'body' ? 'sp_model_ok_b' : 'sp_model_ok') : ''; }
   spView(); spDrawCam(); spDrawTwin(); spDrawPanel(); const ak = $('#spAck'); if (ak) ak.textContent = SP.run ? SP.ack : '';
 }
 function spView() {
-  const ov = $('#spOvl'), v = $('#spVid'), cam = SP.src === 'cam'; v.hidden = !(cam && SP.live); let ti = '', tx = '', cls = '';
+  const ov = $('#spOvl'), v = $('#spVid'), cam = spCam(); v.hidden = !(cam && SP.live); let ti = '', tx = '', cls = '';
   if (spIsCtl()) { ti = SP.run ? (SP.rx ? '' : t('sp_ctl_wait')) : t('sp_idle_t'); tx = SP.run ? t('sp_ctl_nov') : t('sp_ctl_nov'); v.hidden = true; }
   else if (cam && !SP.live) { if (SP.req) { ti = '⏳ ' + t('am_req_t'); tx = t('am_req_p'); } else if (SP.err) { ti = '⚠ ' + t('sp_err'); tx = t(amErrKey(SP.err)); cls = ' err'; } else { ti = t('sp_idle_t'); tx = t('sp_idle_p'); } }
   else if (!SP.run && !cam) { ti = t('sp_idle_t'); tx = t('sp_idle_p'); }
@@ -3435,8 +3513,9 @@ function spView() {
 function spDrawCam() {
   const cv = $('#spCam'); if (!cv || !cv.offsetParent) return; const s = sized(cv); if (!s) return; const { x, w, h } = s, mono = getComputedStyle(document.body).getPropertyValue('--f-mono');
   if (spIsCtl()) { x.fillStyle = '#0d1522'; x.fillRect(0, 0, w, h); x.fillStyle = '#7f8da3'; x.font = '12px ' + mono; x.textAlign = 'center'; x.fillText(t('sp_ctl_nov'), w / 2, h / 2); x.textAlign = 'left'; return; }
-  if (SP.src === 'cam') {
-    if (!SP.live) return; x.fillStyle = 'rgba(0,0,0,.55)'; x.fillRect(0, 0, w, 24); x.fillStyle = '#fff'; x.font = '11px ' + mono; x.fillText('LIVE · LOCAL ONLY · ' + (SP.model === 'ready' ? 'FACE MESH' : SP.model === 'loading' ? 'LOADING MODEL…' : 'NO DETECTOR'), 8, 16);
+  if (spCam()) {
+    if (!SP.live) return; x.fillStyle = 'rgba(0,0,0,.55)'; x.fillRect(0, 0, w, 24); x.fillStyle = '#fff'; x.font = '11px ' + mono; x.fillText('LIVE · LOCAL ONLY · ' + (SP.model === 'ready' ? (SP.src === 'body' ? 'POSE · FULL BODY' : 'FACE MESH') : SP.model === 'loading' ? 'LOADING MODEL…' : 'NO DETECTOR'), 8, 16);
+    if (SP.src === 'body') { spBodyOverlay(x, w, h); return; }
     const lm = SP.lm; if (SP.model === 'ready' && lm && Date.now() - SP.lastFace < 400) { const v = $('#spVid'), vw = v.videoWidth || 1, vh = v.videoHeight || 1, sc = Math.max(w / vw, h / vh), ox = (w - vw * sc) / 2, oy = (h - vh * sc) / 2; let x0 = 1, y0 = 1, x1 = 0, y1 = 0; lm.forEach(q => { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); }); const closed = SP.ear < AM_EAR_CLOSED; x.strokeStyle = closed ? '#ff5a5a' : '#2fd07a'; x.lineWidth = 2; x.strokeRect(ox + x0 * vw * sc, oy + y0 * vh * sc, (x1 - x0) * vw * sc, (y1 - y0) * vh * sc); x.fillStyle = x.strokeStyle; AM_EYE_L.concat(AM_EYE_R).forEach(i => { x.beginPath(); x.arc(ox + lm[i].x * vw * sc, oy + lm[i].y * vh * sc, 2.5, 0, 6.29); x.fill(); }); x.font = '12px ' + mono; x.fillText('face · eyes ' + (closed ? 'closed' : 'open'), ox + x0 * vw * sc, Math.max(36, oy + y0 * vh * sc - 6)); }
     return;
   }
@@ -3458,13 +3537,14 @@ function spDrawTwin() {
   if (!pk) { x.fillStyle = '#7f8da3'; x.font = '13px ' + mono; x.textAlign = 'center'; x.fillText('— waiting for packets —', w / 2, h / 2); x.textAlign = 'left'; return; }
   const col = SP.alarm ? '#ff5a5a' : '#2fd07a';
   if (pk.kp) { const sk = {}; SP_KP.forEach((k, i) => sk[k] = { x: pk.kp[i][0], y: pk.kp[i][1] }); drawSkeleton(cv, sk, col); }
+  else if (pk.mode === 'body') { if (pk.body) spDrawBody(cv, pk.body, col); else { x.fillStyle = '#ff8a8a'; x.font = '13px ' + mono; x.textAlign = 'center'; x.fillText(t('sp_nobody'), w / 2, h / 2); x.textAlign = 'left'; } }
   else if (pk.face) { const f = pk.face, cx = w / 2, cy = h / 2, R = Math.min(w, h) * .28; x.save(); x.translate(cx, cy); x.rotate(f.roll * Math.PI / 180); x.strokeStyle = col; x.lineWidth = 3; x.beginPath(); x.ellipse(0, 0, R * .8, R, 0, 0, 6.29); x.stroke(); x.fillStyle = col; [-1, 1].forEach(sg => { x.beginPath(); if (f.open) x.arc(sg * R * .35, -R * .15, R * .08, 0, 6.29); else { x.moveTo(sg * R * .35 - R * .1, -R * .15); x.lineTo(sg * R * .35 + R * .1, -R * .15); } f.open ? x.fill() : x.stroke(); }); x.beginPath(); x.moveTo(-R * .22, R * .4); x.lineTo(R * .22, R * .4); x.stroke(); x.restore(); }
   else { x.fillStyle = '#ff8a8a'; x.font = '13px ' + mono; x.textAlign = 'center'; x.fillText(t('am_noface'), w / 2, h / 2); x.textAlign = 'left'; }
-  x.fillStyle = '#7f8da3'; x.font = '11px ' + mono; x.fillText('#' + pk.seq + ' · ' + (pk.id || 'face'), 8, 16);
+  x.fillStyle = '#7f8da3'; x.font = '11px ' + mono; x.fillText('#' + pk.seq + ' · ' + (pk.id || (pk.mode === 'body' ? 'body' : 'face')), 8, 16);
 }
 function spDrawPanel() {
   const pk = SP.rx, rd = (k, v) => `<div>${t(k)}<b>${v}</b></div>`;
-  $('#spRead').innerHTML = !pk ? '' : pk.kp ? rd('sp_trunk', pk.trunk + '°') + rd('sp_arm', pk.arm + '°') + rd('sp_hr', pk.hr) + rd('sp_bp', pk.bp[0] + '/' + pk.bp[1]) + rd('sp_temp', pk.temp + '°C') : pk.face ? rd('sp_roll', pk.face.roll + '°') + rd('sp_eye_s', pk.face.open ? t('sp_open') : t('sp_closed')) + `<div>EAR<b>${pk.face.ear}</b></div>` : rd('sp_eye_s', '–');
+  $('#spRead').innerHTML = !pk ? '' : pk.kp ? rd('sp_trunk', pk.trunk + '°') + rd('sp_arm', pk.arm + '°') + rd('sp_hr', pk.hr) + rd('sp_bp', pk.bp[0] + '/' + pk.bp[1]) + rd('sp_temp', pk.temp + '°C') : pk.mode === 'body' ? spBodyRead(pk, rd) : pk.face ? rd('sp_roll', pk.face.roll + '°') + rd('sp_eye_s', pk.face.open ? t('sp_open') : t('sp_closed')) + `<div>EAR<b>${pk.face.ear}</b></div>` : rd('sp_eye_s', '–');
   const pp = $('#spPpe'); pp.innerHTML = pk && pk.ppe ? SP_PPE.map(k => { const v = pk.ppe[k], ok = v >= .5; return `<div class="row"><span>${t('sp_' + k)}</span><div class="bar"><i style="width:${Math.round(v * 100)}%;background:${ok ? 'var(--safe)' : 'var(--danger)'}"></i></div><b class="mono">${Math.round(v * 100)}%</b></div>`; }).join('') : `<p class="note">${pk ? t('sp_ppe_na') : ''}</p>`;
   $('#spAlert').innerHTML = (SP.alarm ? `<div class="sp-alert" role="alert">⚠ ${SP.why}</div>` : '') + (spIsCtl() && SP.stale ? `<div class="sp-alert" role="alert">⚠ ${t('sp_nosig')}</div>` : '');
   $('#spPkt').textContent = pk ? JSON.stringify(pk) : '';
@@ -3477,9 +3557,34 @@ function spWire() {
 async function spLoadModel() {
   if (SP.model === 'loading' || SP.model === 'ready') return; SP.model = 'loading'; spRender();
   const on = r => { const lm = r && r.multiFaceLandmarks && r.multiFaceLandmarks[0]; if (lm && lm.length > 380) { SP.lm = lm; SP.lastFace = Date.now(); SP.ear = amEar(lm); SP.roll = Math.atan2(lm[263].y - lm[33].y, lm[263].x - lm[33].x) * 180 / Math.PI; } else { SP.lm = null; } };
-  try { SP.fm = await mpCreate(on); SP.model = 'ready'; } catch (e) { SP.model = 'fail'; } spRender();
+  const onB = r => { const v = $('#spVid'), asp = (v && v.videoWidth && v.videoHeight) ? v.videoWidth / v.videoHeight : 1.78, f = SU.bodyFrame(r && r.poseLandmarks, asp), tn = performance.now() / 1000; SP.bf = f; if (f) SP.bfT = Date.now();
+    if (SP.bm) { SP.bm.push(f, tn).forEach(k => { SP.bEv.unshift({ time: amStamp(), type: k }); if (SP.bEv.length > 60) SP.bEv.pop(); }); SP.bLvl = SP.bm.level(); }
+    SP.reba = f ? RB.reba({ trunk: f.ang.trunk, neck: f.ang.neck || 0, knee: f.ang.knee || 0, ua: f.ang.ua || 0, la: f.ang.la == null ? 80 : f.ang.la, wr: 0, staticHold: SP.bm && SP.bm.state.stillFor >= 60 }) : null; };
+  try { SP.fm = SP.src === 'body' ? await mpCreatePose(onB) : await mpCreate(on); SP.model = 'ready'; } catch (e) { SP.model = 'fail'; } spRender();
 }
-function spDetect(f) { if (!SP.run || SP.src !== 'cam' || SP.model !== 'ready' || SP.busy) return; const now = performance.now(); if (now - SP.lastSend < 90) return; SP.lastSend = now; SP.busy = true; SP.fm.send({ image: f.video }).then(() => { SP.busy = false; }).catch(() => { SP.busy = false; }); }
+const PO_VER = '0.5.1675469404', PO_BASES = ['https://cdn.jsdelivr.net/npm/@mediapipe/pose@' + PO_VER + '/', 'https://unpkg.com/@mediapipe/pose@' + PO_VER + '/'];
+function poScript(base) { return new Promise((res, rej) => { if (window.Pose) return res(); const s = document.createElement('script'); s.src = base + 'pose.js'; s.crossOrigin = 'anonymous'; const tm = setTimeout(() => rej(new Error('script timeout: ' + base)), 15000); s.onload = () => { clearTimeout(tm); window.Pose ? res() : rej(new Error('Pose missing after load: ' + base)); }; s.onerror = () => { clearTimeout(tm); rej(new Error('cannot load script: ' + base)); }; document.head.appendChild(s); }); }
+async function mpCreatePose(onResults) {
+  let last; for (const base of PO_BASES) { try { await poScript(base); const po = new window.Pose({ locateFile: f => base + f }); po.setOptions({ modelComplexity: (navigator.maxTouchPoints || 0) > 1 ? 0 : 1, smoothLandmarks: true, enableSegmentation: false, minDetectionConfidence: .5, minTrackingConfidence: .5 }); po.onResults(onResults); await Promise.race([po.initialize(), new Promise((_, rej) => setTimeout(() => rej(new Error('model init timeout: ' + base)), 60000))]); MP.base = base; MP.err = ''; return po; } catch (e) { last = e; MP.err = String(e && e.message || e).slice(0, 160); console.warn('pose', MP.err); } }
+  throw last;
+}
+const SP_BCON = [[1, 2], [1, 7], [2, 8], [7, 8], [1, 3], [3, 5], [2, 4], [4, 6], [7, 9], [9, 11], [8, 10], [10, 12]];
+function spBodyOverlay(x, w, h) {
+  const f = SP.bf; if (!(f && Date.now() - SP.bfT < 500)) return; const v = $('#spVid'), vw = v.videoWidth || 1, vh = v.videoHeight || 1, asp = vw / vh, sc = Math.max(w / vw, h / vh), ox = (w - vw * sc) / 2, oy = (h - vh * sc) / 2, X = p => ox + (p[0] / asp) * vw * sc, Y = p => oy + p[1] * vh * sc, col = SP.bLvl >= 2 ? '#ff5a5a' : '#2fd07a';
+  x.strokeStyle = col; x.lineWidth = 3; SP_BCON.forEach(([a, b]) => { if (f.vis[a] && f.vis[b]) { x.beginPath(); x.moveTo(X(f.pts[a]), Y(f.pts[a])); x.lineTo(X(f.pts[b]), Y(f.pts[b])); x.stroke(); } });
+  x.fillStyle = '#fff'; f.pts.forEach((p, i) => { if (f.vis[i]) { x.beginPath(); x.arc(X(p), Y(p), 3.5, 0, 6.29); x.fill(); } });
+  x.fillStyle = 'rgba(0,0,0,.55)'; x.fillRect(0, h - 26, w, 26); x.fillStyle = '#fff'; x.font = '11px monospace'; x.fillText(t('bact_' + f.act) + ' · ' + Math.round(f.ang.trunk) + '° · REBA ' + (SP.reba ? SP.reba.final : '–'), 8, h - 9);
+}
+function spBodyRead(pk, rd) { const b = pk.body; if (!b) return rd('bd_act', t('sp_nobody')); const a = b.ang, f = v => v == null ? '–' : Math.round(v) + '°';
+  return rd('bd_act', t('bact_' + b.act)) + rd('sp_trunk', f(a.trunk)) + rd('sp_arm', f(a.ua)) + rd('bd_knee', f(a.knee)) + rd('bd_still', b.still + ' s') + rd('bd_reba', b.reba ? b.reba.s + ' · ' + t('lv_' + b.reba.l) : '–') + rd('bd_lvl', t('lv_t' + (pk.blvl || 0))); }
+function spDrawBody(cv, b, col) {
+  const s = sized(cv); if (!s) return; const { x, w, h } = s, P = b.pts, vis = b.vis; let x0 = 9, y0 = 9, x1 = -9, y1 = -9; P.forEach((p, i) => { if (vis[i] === '1' || vis[i] === 1) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); } });
+  const bw = Math.max(.15, x1 - x0), bh = Math.max(.15, y1 - y0), k = Math.min(w * .8 / bw, (h - 40) * .85 / bh), cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, X = p => w / 2 + (p[0] - cx) * k, Y = p => h / 2 + 8 + (p[1] - cy) * k, V = i => vis[i] === '1' || vis[i] === 1;
+  x.strokeStyle = col; x.lineWidth = 4; x.lineCap = 'round'; SP_BCON.forEach(([a, c]) => { if (V(a) && V(c)) { x.beginPath(); x.moveTo(X(P[a]), Y(P[a])); x.lineTo(X(P[c]), Y(P[c])); x.stroke(); } });
+  if (V(0) && V(1) && V(2)) { x.beginPath(); x.moveTo(X(P[0]), Y(P[0])); x.lineTo((X(P[1]) + X(P[2])) / 2, (Y(P[1]) + Y(P[2])) / 2); x.stroke(); }
+  x.fillStyle = '#fff'; P.forEach((p, i) => { if (V(i)) { x.beginPath(); x.arc(X(p), Y(p), i === 0 ? 7 : 4.5, 0, 6.29); x.fill(); } });
+}
+function spDetect(f) { if (!SP.run || !spCam() || SP.model !== 'ready' || SP.busy) return; const now = performance.now(); if (now - SP.lastSend < 90) return; SP.lastSend = now; SP.busy = true; SP.fm.send({ image: f.video }).then(() => { SP.busy = false; }).catch(() => { SP.busy = false; }); }
 function spFrameLoop() { const v = $('#spVid'), my = ++SP.fid; const tick = (now) => { if (my !== SP.fid || !SP.live) return; spDetect({ video: v }); if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(tick); else requestAnimationFrame(tick); }; if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(tick); else requestAnimationFrame(tick); }
 function spStopCam() { SP.fid = (SP.fid || 0) + 1; if (SP.stream) SP.stream.getTracks().forEach(tr => tr.stop()); SP.stream = null; SP.live = false; const v = $('#spVid'); if (v) { try { v.pause(); } catch (_) {} v.srcObject = null; } }
 async function spStartCam() {
@@ -3490,13 +3595,14 @@ async function spStartCam() {
     SP.stream = s; const v = $('#spVid'); v.srcObject = s; await v.play(); SP.live = true; SP.req = false; s.getVideoTracks().forEach(tr => tr.addEventListener('ended', () => { if (SP.stream === s) { spStopCam(); spHalt(); SP.err = { name: 'CameraLost' }; spRender(); } })); spFrameLoop(); spLoadModel(); spRender(); return true;
   } catch (e) { SP.live = false; SP.req = false; SP.err = e || { name: 'error' }; spStopCam(); spRender(); return false; }
 }
-function spHalt() { spNetClose(); SP.cmd = 'OK'; SP.cmdSeen = null; SP.stale = false; SP.run = false; spStopCam(); SP.req = false; SP.rx = null; SP.last = null; SP.alarm = false; SP.ack = ''; SP.tx = []; SP.dn = []; SP.flight = []; if (SP.timer) { clearInterval(SP.timer); SP.timer = null; } spRender(); }
+function spHalt() { SP.bf = null; SP.bLvl = 0; spNetClose(); SP.cmd = 'OK'; SP.cmdSeen = null; SP.stale = false; SP.run = false; spStopCam(); SP.req = false; SP.rx = null; SP.last = null; SP.alarm = false; SP.ack = ''; SP.tx = []; SP.dn = []; SP.flight = []; if (SP.timer) { clearInterval(SP.timer); SP.timer = null; } spRender(); }
 async function spToggle() {
   if (SP.run) { spHalt(); return; }
   if (SP.model === 'fail') SP.model = 'idle';
   if (spRelayOn()) { if (!spNetCheck()) return; }
-  if (SP.src === 'cam' && !spIsCtl()) { if (SP.req) return; const ok = await spStartCam(); if (!ok) return; }
+  if (spCam() && !spIsCtl()) { if (SP.req) return; const ok = await spStartCam(); if (!ok) return; }
   if (spRelayOn()) spNetOpen();
+  if (SP.src === 'body') { SP.bm = SU.createBodyMonitor(); SP.bEv = []; SP.bLvl = 0; SP.bf = null; SP.reba = null; }
   SP.run = true; SP.vidBytes = 0; SP.timer = setInterval(spTick, 110); requestAnimationFrame(spWire); spRender();
 }
 
@@ -3558,7 +3664,20 @@ Object.assign(D, {
   am_sup_note: ['<b>诚实说明：</b>真实摄像头下，人脸、眼睛（EAR）、头部姿态、哈欠（MAR）、PERCLOS 由 MediaPipe Face Mesh 在本机计算，但我没有在真人脸上验证过它们；头部姿态是近似值，需要用“设为正前方”校准。安全帽和背心是颜色启发式，不是训练过的检测模型：白色帽子、与帽子同色的背景会误判，需要校准；帽子或背心不在画面里时会判“看不到”，不会猜。口罩在真实摄像头下不检测。PERCLOS 15% 等阈值是常见经验值，不是针对你们现场的结论。模拟场景里的内容仍是模拟的。升级只到“停工请求”，由人确认；系统从不自动报警。', '<b>Honest limits:</b> with the real camera, face, eyes (EAR), head pose, yawning (MAR) and PERCLOS are computed on this device by MediaPipe Face Mesh, but I have not validated them on real faces; head pose is approximate and needs “facing front” calibration. Helmet and vest use a colour heuristic, not a trained detector: white hats and same-colour backgrounds will be misjudged without calibration, and when the helmet or vest area is out of frame the result is “not visible”, never a guess. Masks are not checked with the real camera. Thresholds such as PERCLOS 15% are common rules of thumb, not conclusions for your site. Simulated scenarios are simulated. Escalation stops at a stop-work request that a person confirms; the system never calls anyone automatically.', '<b>정직한 한계:</b> 실제 카메라에서 얼굴·눈(EAR)·머리 자세·하품(MAR)·PERCLOS는 MediaPipe Face Mesh가 이 기기에서 계산하지만 실제 얼굴로 검증하지 않았고, 머리 자세는 근사값이라 “정면” 보정이 필요합니다. 안전모·조끼는 학습된 검출기가 아닌 색상 휴리스틱이라 흰색 모자·같은 색 배경은 보정 없이는 오판하며, 영역이 화면 밖이면 추측하지 않고 “안 보임”으로 처리합니다. 마스크는 검사하지 않습니다. PERCLOS 15% 등은 일반적 경험값입니다. 모의 시나리오는 모의입니다. 단계 상승은 사람이 확인하는 작업중지 요청까지이며 자동 신고하지 않습니다.']
 });
 
+
+Object.assign(D, {
+  sp_src_body: ['真实摄像头（全身骨架 · 动作）', 'Real camera (whole-body skeleton · actions)', '실제 카메라(전신 골격·동작)'],
+  sp_model_load_b: ['正在加载全身骨架模型（MediaPipe Pose），第一次可能要 10–60 秒…', 'Loading the whole-body model (MediaPipe Pose); the first time can take 10–60 s…', '전신 골격 모델(MediaPipe Pose) 로딩 중, 처음에는 10–60초 걸릴 수 있습니다…'],
+  sp_model_ok_b: ['全身骨架模型就绪（在本机运行）。请退后，让肩、髋、膝都进入画面；侧身对着摄像头更利于看弯腰。', 'Whole-body model ready (runs on this device). Step back so shoulders, hips and knees are in view; standing side-on helps to see bending.', '전신 모델 준비됨(이 기기에서 실행). 어깨·엉덩이·무릎이 보이게 뒤로 서고, 굽힘은 옆모습이 더 잘 보입니다.'],
+  sp_alert_body: ['骨架监控：', 'Skeleton monitor:', '골격 감시:'], sp_nobody: ['未看到人体（需要肩和髋进入画面）', 'No body in view (shoulders and hips must be visible)', '몸이 보이지 않음(어깨·엉덩이 필요)'],
+  bev_fall_suspect: ['疑似倒地', 'Suspected fall', '쓰러짐 의심'], bev_still_long: ['长时间完全不动', 'Motionless too long', '장시간 무동작'], bev_bend_long: ['长时间弯腰', 'Bent over too long', '장시간 굽힘'], bev_squat_long: ['长时间下蹲', 'Squatting too long', '장시간 쪼그림'], bev_overhead_long: ['长时间举手过肩', 'Arms overhead too long', '장시간 팔 들기'], bev_absent_body: ['人离开画面', 'Left the frame', '화면 이탈'],
+  bact_stand: ['站立', 'Standing', '서 있음'], bact_bend: ['弯腰', 'Bending', '굽힘'], bact_squat: ['下蹲', 'Squatting', '쪼그림'], bact_armsup: ['举手', 'Arms raised', '팔 들기'], bact_lying: ['躺倒', 'Lying', '누움'],
+  bd_act: ['动作', 'Action', '동작'], bd_knee: ['膝屈曲', 'Knee flexion', '무릎 굴곡'], bd_still: ['静止时长', 'Stillness', '정지 시간'], bd_reba: ['REBA', 'REBA', 'REBA'], bd_lvl: ['升级等级', 'Escalation', '단계'],
+  sp_body_note: ['全身骨架来自 MediaPipe Pose，在本机运行，只发送关节坐标，不发视频。只用一个摄像头，角度是画面里的二维投影：正对摄像头时前后弯腰会被低估，侧身站立更准。倒地、静止、长时间弯腰/下蹲/举手由规则判断，会有误报（比如蹲下捡东西），所以只升级到“请求”，由人确认。我没有在真人身上验证过。', 'The skeleton comes from MediaPipe Pose, runs on this device and sends joint coordinates only, no video. With a single camera the angles are 2-D projections: bending towards the camera is under-estimated, standing side-on is more accurate. Falls, stillness and long bending, squatting or arms-up are rule-based and can raise false alarms (for example crouching to pick something up), so they only escalate to a request that a person confirms. I have not validated this on real people.', '전신 골격은 MediaPipe Pose로 이 기기에서 실행되며 관절 좌표만 보내고 영상은 보내지 않습니다. 카메라 한 대라 각도는 2차원 투영이며 카메라 쪽으로 굽히면 과소평가되고 옆모습이 더 정확합니다. 쓰러짐·정지·장시간 굽힘/쪼그림/팔 들기는 규칙 기반이라 오경보(예: 물건 줍기)가 있을 수 있어 사람이 확인하는 요청까지만 올립니다. 실제 사람으로 검증하지 않았습니다.']
+});
+
 /* ============================================================ relay (real cross-device transport for the split view) */
+SP.bEv = []; SP.bLvl = 0; SP.bf = null; SP.bfT = 0; SP.bm = null; SP.reba = null;
 SP.mode = 'browser'; SP.net = { ws: null, st: 'off', role: 'site', room: '', url: '', rtt: null, peers: { site: 0, control: 0 }, err: '', timer: null, ping: null, want: false }; SP.cmd = 'OK';
 try { const q = JSON.parse(localStorage.getItem('shk-relay') || '{}'); SP.net.url = q.url || ''; SP.net.room = q.room || ''; SP.net.role = q.role === 'control' ? 'control' : 'site'; } catch (_) {}
 const spRelayOn = () => SP.mode === 'relay';
@@ -3704,7 +3823,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('change', e => {
   const s = e.target.closest('select'); if (!s) return;
-  if (s.id === 'spSrc') { if (SP.run) spHalt(); SP.src = s.value; SP.err = null; spRender(); return; }
+  if (s.id === 'spSrc') { if (SP.run) spHalt(); if ((s.value === 'body') !== (SP.src === 'body')) { SP.fm = null; SP.model = 'idle'; } SP.src = s.value; SP.err = null; SP.bf = null; spRender(); return; }
   if (s.dataset.tkr) { App.tkReason[+s.dataset.tkr] = +s.value; return; }
   if (s.dataset.act === 'sel') App.sel = s.value; else if (s.dataset.act === 'evsel') App.evsel = s.value;
   renderControls(); uiTick();
