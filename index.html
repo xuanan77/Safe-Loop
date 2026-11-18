@@ -788,6 +788,7 @@ html,body{height:100%;overflow:hidden;scroll-behavior:auto}
       <div class="ph"><span data-i="am_sup"></span><span class="s" id="amPolTag"></span></div>
       <div class="pb">
         <div class="amlive" id="amLive"></div>
+        <div class="amrec" id="amPpl" hidden></div>
         <div class="amesc" id="amEsc"></div>
         <div id="amAct"></div>
         <div class="amrow" id="amScnRow" hidden><label for="amScn" data-i="am_scn"></label><select id="amScn"><option value="normal" data-i="am_sc_normal"></option><option value="drowsy" data-i="am_sc_drowsy"></option><option value="nod" data-i="am_sc_nod"></option><option value="helmet" data-i="am_sc_helmet"></option><option value="absent" data-i="am_sc_absent"></option><option value="mixed" data-i="am_sc_mixed"></option></select></div>
@@ -2076,23 +2077,45 @@ function mar(lm) { const d = (a, b) => Math.hypot(lm[a].x - lm[b].x, lm[a].y - l
 /* regions (normalised image coords) derived from the face box */
 function regions(lm) {
   const F = lm[10], C = lm[152], L = lm[234], R = lm[454], H = Math.abs(C.y - F.y) || 1e-6, W = Math.abs(R.x - L.x) || 1e-6, cx = (L.x + R.x) / 2;
-  return { helmet: { x0: cx - W * .6, x1: cx + W * .6, y0: F.y - H * .75, y1: F.y - H * .05 }, vest: { x0: cx - W * 1.1, x1: cx + W * 1.1, y0: C.y + H * .55, y1: C.y + H * 1.9 } };
+  return { helmet: { x0: cx - W * .65, x1: cx + W * .65, y0: F.y - H * .55, y1: F.y + H * .1 }, vest: { x0: cx - W * 1.7, x1: cx + W * 1.7, y0: C.y + H * .3, y1: C.y + H * 2.2 } };
 }
 /* ---- colour heuristics */
 function rgb2hsv(r, g, b) { r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; let h = 0; if (d) { h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; if (h < 0) h += 360; } return [h, mx ? d / mx : 0, mx]; }
 const inH = (h, a, b) => h >= a && h <= b;
-function helmetDefault(h, s, v) { return v >= .35 && ((inH(h, 40, 68) && s >= .55) || (inH(h, 14, 40) && s >= .7) || ((h >= 352 || h <= 8) && s >= .65) || (inH(h, 195, 250) && s >= .5) || (inH(h, 90, 150) && s >= .5)); }
-function vestDefault(h, s, v) { return v >= .55 && ((inH(h, 52, 95) && s >= .5) || (inH(h, 10, 38) && s >= .7)); }
+const isWhite = (s, v) => s <= .2 && v >= .72;
+function helmetDefault(h, s, v) { return isWhite(s, v) || (v >= .4 && ((inH(h, 40, 68) && s >= .55) || (inH(h, 14, 40) && s >= .7) || ((h >= 352 || h <= 8) && s >= .65) || (inH(h, 195, 250) && s >= .5) || (inH(h, 90, 150) && s >= .5))); }
+function vestDefault(h, s, v) { return v >= .5 && ((inH(h, 52, 95) && s >= .4) || (inH(h, 10, 38) && s >= .7)); }
 function matchCal(h, s, v, c) { let dh = Math.abs(h - c.h); dh = Math.min(dh, 360 - dh); return (c.s < .15 ? dh <= 360 : dh <= 20) && Math.abs(s - c.s) <= .25 && Math.abs(v - c.v) <= .25; }
-/* img = {data: Uint8ClampedArray RGBA, w, h}; rect normalised. Returns fraction of matching pixels and whether the rect lies inside the frame */
+/* img = {data: Uint8ClampedArray RGBA, w, h}; rect normalised. Returns fraction of matching pixels, whether the rect lies inside the frame,
+   and `amb` = the surroundings (strip above + both sides) look like the same colour, so colour alone cannot tell the object from the background.
+   `ok` is the final yes/no (fraction ≥ per-kind threshold and not ambiguous). */
+const TH = { helmet: .35, vest: .22 };
+function scan(img, rect, f, cal) {
+  const x0 = Math.floor(rect.x0 * img.w), x1 = Math.ceil(rect.x1 * img.w), y0 = Math.floor(rect.y0 * img.h), y1 = Math.ceil(rect.y1 * img.h);
+  const cx0 = Math.max(0, x0), cx1 = Math.min(img.w, x1), cy0 = Math.max(0, y0), cy1 = Math.min(img.h, y1);
+  let n = 0, m = 0, sh = 0, ss = 0, sv = 0, sx = 0, sy = 0, mr = 0, mg = 0, mb = 0;
+  for (let y = cy0; y < cy1; y++) for (let x = cx0; x < cx1; x++) { const i = (y * img.w + x) * 4, hsv = rgb2hsv(img.data[i], img.data[i + 1], img.data[i + 2]); n++; sx += Math.cos(hsv[0] * Math.PI / 180); sy += Math.sin(hsv[0] * Math.PI / 180); ss += hsv[1]; sv += hsv[2]; if (cal ? matchCal(hsv[0], hsv[1], hsv[2], cal) : f(hsv[0], hsv[1], hsv[2])) { m++; mr += img.data[i]; mg += img.data[i + 1]; mb += img.data[i + 2]; } }
+  let hm = deg(Math.atan2(sy, sx)); if (hm < 0) hm += 360;
+  return { n, m, frac: n ? m / n : 0, rgb: m ? [mr / m, mg / m, mb / m] : null, mean: { h: hm, s: n ? ss / n : 0, v: n ? sv / n : 0 } };
+}
+/* fraction of pixels in rect whose RGB is within distance D of colour c */
+function nearFrac(img, rect, c, D) {
+  const x0 = Math.max(0, Math.floor(rect.x0 * img.w)), x1 = Math.min(img.w, Math.ceil(rect.x1 * img.w)), y0 = Math.max(0, Math.floor(rect.y0 * img.h)), y1 = Math.min(img.h, Math.ceil(rect.y1 * img.h)); let n = 0, m = 0;
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const i = (y * img.w + x) * 4; n++; if (Math.hypot(img.data[i] - c[0], img.data[i + 1] - c[1], img.data[i + 2] - c[2]) <= D) m++; } return { n, m };
+}
 function regionScore(img, rect, kind, cal) {
   const x0 = Math.floor(rect.x0 * img.w), x1 = Math.ceil(rect.x1 * img.w), y0 = Math.floor(rect.y0 * img.h), y1 = Math.ceil(rect.y1 * img.h);
   const area = (x1 - x0) * (y1 - y0), cx0 = Math.max(0, x0), cx1 = Math.min(img.w, x1), cy0 = Math.max(0, y0), cy1 = Math.min(img.h, y1);
-  const vis = area > 0 ? (Math.max(0, cx1 - cx0) * Math.max(0, cy1 - cy0)) / area : 0; if (vis < .6) return { inView: false, frac: 0, vis };
-  let n = 0, m = 0, sh = 0, ss = 0, sv = 0, sx = 0, sy = 0; const f = kind === 'vest' ? vestDefault : helmetDefault;
-  for (let y = cy0; y < cy1; y++) for (let x = cx0; x < cx1; x++) { const i = (y * img.w + x) * 4, hsv = rgb2hsv(img.data[i], img.data[i + 1], img.data[i + 2]); n++; sx += Math.cos(hsv[0] * Math.PI / 180); sy += Math.sin(hsv[0] * Math.PI / 180); ss += hsv[1]; sv += hsv[2]; if (cal ? matchCal(hsv[0], hsv[1], hsv[2], cal) : f(hsv[0], hsv[1], hsv[2])) m++; }
-  let hm = deg(Math.atan2(sy, sx)); if (hm < 0) hm += 360;
-  return { inView: true, frac: n ? m / n : 0, vis, mean: { h: hm, s: n ? ss / n : 0, v: n ? sv / n : 0 } };
+  const vis = area > 0 ? (Math.max(0, cx1 - cx0) * Math.max(0, cy1 - cy0)) / area : 0; if (vis < .6) return { inView: false, frac: 0, vis, ok: false, amb: false };
+  const f = kind === 'vest' ? vestDefault : helmetDefault, r = scan(img, rect, f, cal); let amb = false, ring = null;
+  if (kind === 'helmet' && r.frac >= TH.helmet && r.rgb) {
+    const w = rect.x1 - rect.x0, h = rect.y1 - rect.y0, strips = [{ x0: rect.x0, x1: rect.x1, y0: rect.y0 - h * .6, y1: rect.y0 - 1 / img.h }, { x0: rect.x0 - w * .4, x1: rect.x0 - 1 / img.w, y0: rect.y0, y1: rect.y1 }, { x0: rect.x1 + 1 / img.w, x1: rect.x1 + w * .4, y0: rect.y0, y1: rect.y1 }];
+    let rn = 0, rm = 0; strips.forEach(q => { const qq = { x0: Math.max(0, q.x0), x1: Math.min(1, q.x1), y0: Math.max(0, q.y0), y1: Math.min(1, q.y1) }; if (qq.x1 - qq.x0 <= 0 || qq.y1 - qq.y0 <= 0) return; const s2 = nearFrac(img, qq, r.rgb, 20); rn += s2.n; rm += s2.m; });
+    if (rn >= 30) { ring = rm / rn; amb = ring >= .65; }  /* ring = share of the surroundings whose colour is nearly the same as the matched region */
+  }
+  let ok = r.frac >= (TH[kind] || .3) && !amb, strap = false;
+  if (kind === 'vest' && !ok && r.frac >= .04) { const mx = (rect.x0 + rect.x1) / 2, a = scan(img, { x0: rect.x0, x1: mx, y0: rect.y0, y1: rect.y1 }, f, cal), b = scan(img, { x0: mx, x1: rect.x1, y0: rect.y0, y1: rect.y1 }, f, cal); if (a.frac >= .025 && b.frac >= .025) { ok = true; strap = true; } } /* thin hi-vis harness straps on both sides of the chest */
+  return { inView: true, frac: r.frac, vis, mean: r.mean, ring, amb, strap, ok };
 }
 /* ---- check-in decision. c = counters over the observation window; need = policy */
 function decide(c, pol) {
@@ -2176,6 +2199,20 @@ function createBodyMonitor(cfg) {
     if (score >= 6 || (crit && score >= 4) || (S.cond.fall_suspect && S.cond.fall_suspect.fired && t - S.cond.fall_suspect.since >= cfg.lying * 3)) return 3; if (crit || score >= 3) return 2; if (score >= 1 || active.length) return 1; return 0; }
   return { push, level, state: S, cfg };
 }
+/* ---- multi-person tracker: greedy nearest-centroid matching with persistent ids */
+function createTracker(cfg) {
+  cfg = Object.assign({ maxDist: .22, ttl: 3 }, cfg || {}); const tr = []; let nid = 0;
+  /* dets: [{cx,cy,size}] in normalised image coords; returns array aligned with dets: track ids ('P1'..), and list of removed ids */
+  function update(dets, t) {
+    const pairs = []; tr.forEach((k, i) => dets.forEach((d, j) => { const dist = Math.hypot(k.cx - d.cx, k.cy - d.cy); if (dist <= cfg.maxDist + .5 * (k.size || 0)) pairs.push([dist, i, j]); }));
+    pairs.sort((a, b) => a[0] - b[0]); const ut = {}, ud = {}, ids = new Array(dets.length).fill(null);
+    pairs.forEach(([d, i, j]) => { if (ut[i] || ud[j]) return; ut[i] = 1; ud[j] = 1; const k = tr[i], q = dets[j]; k.cx = q.cx; k.cy = q.cy; k.size = q.size; k.seen = t; ids[j] = k.id; });
+    dets.forEach((q, j) => { if (ud[j]) return; const k = { id: 'P' + (++nid), cx: q.cx, cy: q.cy, size: q.size, seen: t, born: t }; tr.push(k); ids[j] = k.id; });
+    const gone = []; for (let i = tr.length - 1; i >= 0; i--) if (t - tr[i].seen > cfg.ttl) { gone.push(tr[i].id); tr.splice(i, 1); }
+    return { ids, gone, live: tr.map(k => k.id) };
+  }
+  return { update, tracks: tr, reset: () => { tr.length = 0; nid = 0; } };
+}
 /* ---- tests */
 function suite() {
   const S = [], add = (id, name, expect, run) => S.push({ id, name, expect, run }), o3 = (zh, en, ko) => ({ zh, en, ko });
@@ -2186,13 +2223,21 @@ function suite() {
     let mx = 0; for (let y = -40; y <= 40; y += 10) mx = Math.max(mx, Math.abs(headPose(lmFace(y, 0)).yaw - y)); for (let p = 0; p <= 45; p += 5) mx = Math.max(mx, Math.abs(headPose(lmFace(0, p)).pitch - p));
     return { pass: mx <= 3, obs: o3(`最大误差 ${mx.toFixed(2)}°（合成几何，未用真人脸验证）`, `max error ${mx.toFixed(2)}° (synthetic geometry, not validated on real faces)`, `최대 오차 ${mx.toFixed(2)}° (합성 기하, 실제 얼굴 미검증)`) }; });
   const img = (fill, w, h) => { const d = new Uint8ClampedArray(w * h * 4); for (let i = 0; i < w * h; i++) { const c = fill(i % w, Math.floor(i / w)); d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; d[i * 4 + 3] = 255; } return { data: d, w, h }; };
-  add('T42', o3('安全帽/背心颜色启发式', 'Helmet / vest colour heuristic', '안전모·조끼 색상 휴리스틱'), o3('黄/橙/蓝帽识别 ≥ 95%；肤色、灰墙、黑发误判 ≤ 5%；校准后白帽可识别', 'Yellow/orange/blue hats ≥ 95%; skin, grey wall and dark hair ≤ 5% false; white hat works after calibration', '노랑·주황·파랑 ≥ 95%, 피부·회색·검정 오검출 ≤ 5%, 보정 후 흰색 가능'), () => {
-    const rect = { x0: .3, x1: .7, y0: .1, y1: .4 }, pos = [[255, 210, 31], [255, 140, 30], [30, 90, 220], [240, 190, 20]], neg = [[198, 146, 120], [120, 120, 125], [30, 25, 22], [235, 235, 238], [180, 130, 100], [90, 70, 60]];
-    let tp = 0, fp = 0; const jit = (c, k) => c.map((v, i) => cl(v + ((k * 37 + i * 11) % 21) - 10, 0, 255));
-    pos.forEach((c, i) => { if (regionScore(img((x, y) => jit(c, x + y * 3), 40, 40), rect, 'helmet').frac >= .35) tp++; }); neg.forEach((c, i) => { if (regionScore(img((x, y) => jit(c, x + y * 3), 40, 40), rect, 'helmet').frac >= .35) fp++; });
-    const wh = img(() => [236, 236, 240], 40, 40), cal = { h: 240, s: .02, v: .93 }, wOk = regionScore(wh, rect, 'helmet', cal).frac >= .35, wNo = regionScore(img(() => [120, 120, 125], 40, 40), rect, 'helmet', cal).frac < .35;
-    const out = regionScore(img(() => [255, 210, 31], 40, 40), { x0: .3, x1: .7, y0: -.3, y1: .05 }, 'helmet'); const vest = regionScore(img(() => [200, 240, 40], 40, 40), rect, 'vest').frac >= .35;
-    return { pass: tp / pos.length >= .95 && fp / neg.length <= .05 && wOk && wNo && out.inView === false && vest, obs: o3(`正确 ${tp}/${pos.length} · 误判 ${fp}/${neg.length} · 白帽校准 ${wOk ? '✓' : '✗'} · 画面外判“看不到”${out.inView ? '✗' : '✓'}`, `hits ${tp}/${pos.length} · false ${fp}/${neg.length} · white (calibrated) ${wOk ? '✓' : '✗'} · off-frame → “not visible” ${out.inView ? '✗' : '✓'}`, `적중 ${tp}/${pos.length} · 오검출 ${fp}/${neg.length} · 흰색(보정) ${wOk ? '✓' : '✗'} · 화면 밖=“안 보임” ${out.inView ? '✗' : '✓'}`) }; });
+  add('T42', o3('安全帽/背心颜色启发式（含白色安全帽）', 'Helmet / vest colour heuristic (incl. white helmets)', '안전모·조끼 색상 휴리스틱(흰색 안전모 포함)'), o3('黄/橙/蓝/白帽在深色或彩色背景前识别 ≥ 95%；肤色、黑发、深色棒球帽、米色羽绒背心误判 ≤ 5%；白帽对白墙判“无法判断”而不是误报；荧光背心/安全带细条能识别', 'Yellow/orange/blue/white hats against dark or coloured backgrounds ≥ 95%; skin, black hair, a navy cap and a beige puffer vest ≤ 5% false positives; a white hat against a white wall is reported as undecidable, not as a pass; thin hi-vis harness straps are recognised', '노랑/주황/파랑/흰색 안전모(어둡거나 색 있는 배경) ≥ 95%; 피부·검은 머리·남색 야구모자·베이지 패딩조끼 오검출 ≤ 5%; 흰 벽 앞 흰 안전모는 합격이 아니라 판단불가; 형광 조끼/안전벨트 가는 띠 인식'), () => {
+    const img = (fill, w, h) => { const d = new Uint8ClampedArray(w * h * 4); for (let i = 0; i < w * h; i++) { const c = fill(i % w, Math.floor(i / w)); d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; d[i * 4 + 3] = 255; } return { data: d, w, h }; };
+    const rect = { x0: .3, x1: .7, y0: .25, y1: .45 }, inR = (x, y) => x / 60 >= rect.x0 && x / 60 < rect.x1 && y / 60 >= rect.y0 && y / 60 < rect.y1;
+    const jit = (c, k) => c.map((v, i) => cl(v + ((k * 37 + i * 11) % 21) - 10, 0, 255)), bgs = [[40, 50, 70], [90, 130, 110], [150, 110, 90]];
+    const pos = [[255, 210, 31], [255, 140, 30], [30, 90, 220], [240, 190, 20], [244, 244, 246], [232, 234, 238]], neg = [[198, 146, 120], [120, 120, 125], [30, 25, 22], [22, 30, 60], [225, 205, 175], [90, 70, 60]];
+    let tp = 0, tpN = 0, fp = 0, fpN = 0;
+    pos.forEach(c => bgs.forEach(bg => { tpN++; if (regionScore(img((x, y) => inR(x, y) ? jit(c, x + y * 3) : jit(bg, x), 60, 60), rect, 'helmet').ok) tp++; }));
+    neg.forEach(c => bgs.forEach(bg => { fpN++; if (regionScore(img((x, y) => inR(x, y) ? jit(c, x + y * 3) : jit(bg, x), 60, 60), rect, 'helmet').ok) fp++; }));
+    const wall = regionScore(img((x, y) => jit([238, 238, 240], x + y * 3), 60, 60), rect, 'helmet'), whiteOnWall = regionScore(img((x, y) => jit(inR(x, y) ? [244, 244, 246] : [236, 236, 238], x + y * 3), 60, 60), rect, 'helmet');
+    const amb = wall.amb && whiteOnWall.amb && !wall.ok && !whiteOnWall.ok;
+    const cal = { h: 240, s: .02, v: .93 }, wCal = regionScore(img((x, y) => inR(x, y) ? [236, 236, 240] : [40, 50, 70], 60, 60), rect, 'helmet', cal).ok;
+    const out = regionScore(img(() => [255, 210, 31], 40, 40), { x0: .3, x1: .7, y0: -.3, y1: .05 }, 'helmet'); const vr = { x0: .2, x1: .8, y0: .4, y1: .8 };
+    const lime = [200, 240, 40], strap = img((x, y) => ((x >= 14 && x < 21) || (x >= 39 && x < 46) || (y >= 36 && y < 40)) ? lime : [30, 35, 50], 60, 60), vS = regionScore(strap, vr, 'vest').ok, vB = regionScore(img(() => [226, 200, 170], 60, 60), vr, 'vest').ok, vG = regionScore(img(() => [120, 120, 125], 60, 60), vr, 'vest').ok;
+    const ok = tp / tpN >= .95 && fp / fpN <= .05 && amb && wCal && out.inView === false && vS && !vB && !vG;
+    return { pass: ok, obs: o3(`有帽 ${tp}/${tpN} · 误判 ${fp}/${fpN} · 白帽对白墙判无法判断 ${amb ? '✓' : '✗'} · 校准后白帽 ${wCal ? '✓' : '✗'} · 画面外判“看不到” ${out.inView === false ? '✓' : '✗'} · 荧光安全带细条 ${vS ? '✓' : '✗'} · 米色背心误判 ${vB ? '是' : '否'}（合成颜色块，不等于真实照片）`, `with hat ${tp}/${tpN} · false ${fp}/${fpN} · white-on-white undecidable ${amb ? '✓' : '✗'} · white after calibration ${wCal ? '✓' : '✗'} · out of frame → not visible ${out.inView === false ? '✓' : '✗'} · hi-vis straps ${vS ? '✓' : '✗'} · beige vest false positive ${vB ? 'yes' : 'no'} (synthetic colour blocks, not real photos)`, `착용 ${tp}/${tpN} · 오검출 ${fp}/${fpN} · 흰 벽 판단불가 ${amb ? '✓' : '✗'} · 보정 후 흰 안전모 ${wCal ? '✓' : '✗'} · 프레임 밖 → 안 보임 ${out.inView === false ? '✓' : '✗'} · 형광 벨트 ${vS ? '✓' : '✗'} · 베이지 조끼 오검출 ${vB ? '예' : '아니오'} (합성 색 블록, 실제 사진 아님)`) }; });
   add('T43', o3('签到判定规则', 'Check-in decision rules', '체크인 판정 규칙'), o3('全部满足才通过；缺任何一项要求都不通过并列出原因；未要求的项不拦截', 'Passes only if all required items hold; any missing item fails with its reason; non-required items do not block', '필수 항목이 모두 충족될 때만 통과, 누락 시 사유 표시, 비필수는 차단 안 함'), () => {
     const good = { n: 40, fc: 40, op: 40, att: 40, hIn: 40, hel: 40, vIn: 40, ves: 40 }; const a = decide(good), b = decide(Object.assign({}, good, { hel: 5 })), c = decide(Object.assign({}, good, { hel: 5 }), { helmet: false }), d = decide(Object.assign({}, good, { fc: 10, op: 10, att: 10, hIn: 10, hel: 10, vIn: 10, ves: 10 })), e = decide(Object.assign({}, good, { hIn: 3 })), f = decide(Object.assign({}, good, { op: 10 }));
     const ok = a.pass && !b.pass && b.bad.join() === 'helmet' && c.pass && !d.pass && d.bad[0] === 'face' && e.bad.join() === 'helmet_view' && f.bad.join() === 'eyes';
@@ -2235,9 +2280,15 @@ function suite() {
     const a = lat(t => (t >= 10 ? { trunk: 88 } : walk(t)), 'fall_suspect', 1.5, 30), b = lat(t => (t >= 10 ? { trunk: 3 } : walk(t)), 'still_long', 20, 60), c = lat(t => (t >= 10 ? { trunk: 50 } : walk(t)), 'bend_long', 15, 40), d = lat(t => (t >= 10 ? { knee: 85 } : walk(t)), 'squat_long', 15, 40), e = lat(t => (t >= 10 ? { arm: 140 } : walk(t)), 'overhead_long', 20, 50), f = lat(t => (t >= 10 ? null : walk(t)), 'absent_body', 5, 30);
     const lvl = runB(t => (t >= 10 ? { trunk: 88 } : walk(t)), 30).m.level(); const ok = [a, c, d, e, f].every(v => v != null && v >= -.01 && v <= .21) && b != null && b >= -.01 && b <= 2.5 && lvl === 3; /* stillness uses a smoothed speed, so it may lag by up to 2.5 s */
     return { pass: ok, obs: o3(`延迟 倒地 ${a} · 静止 ${b} · 弯腰 ${c} · 下蹲 ${d} · 举手 ${e} · 离开 ${f} s · 倒地等级 ${lvl}`, `latency lying ${a} · still ${b} · bend ${c} · squat ${d} · arms ${e} · left ${f} s · lying level ${lvl}`, `지연 쓰러짐 ${a} · 정지 ${b} · 굽힘 ${c} · 쪼그림 ${d} · 팔 ${e} · 이탈 ${f} s · 단계 ${lvl}`) }; });
+  add('T51', o3('多人跟踪：编号稳定、不串号', 'Multi-person tracking: stable ids, no swaps', '다인 추적: 번호 유지·뒤바뀜 없음'), o3('3 人同时在画面内走动 60 s，编号保持不变；1 人离开再回来（≤ 3 s）沿用原编号；新进入者得到新编号', '3 people moving for 60 s keep their ids; one leaving and returning within 3 s keeps its id; a newcomer gets a new id', '3명이 60초 동안 이동해도 번호 유지; 3초 이내 이탈 후 복귀 시 번호 유지; 새로 들어온 사람은 새 번호'), () => {
+    const T = createTracker(), P = (k, t) => ({ cx: .2 + .3 * k + .04 * Math.sin(t * .7 + k), cy: .5 + .05 * Math.cos(t * .5 + k), size: .12 }); let swaps = 0, base = null;
+    for (let k = 0; k <= 600; k++) { const t = k / 10, r = T.update([0, 1, 2].map(i => P(i, t)), t); if (!base) base = r.ids.slice(); else if (r.ids.join() !== base.join()) swaps++; }
+    let t0 = 60; T.update([P(0, t0), P(2, t0)], t0); const back = T.update([P(0, t0 + 2), P(1, t0 + 2), P(2, t0 + 2)], t0 + 2); const keep = back.ids.join() === base.join();
+    const nw = T.update([P(0, 63), P(1, 63), P(2, 63), { cx: .95, cy: .2, size: .1 }], 63), fresh = nw.ids[3] && base.indexOf(nw.ids[3]) < 0;
+    return { pass: swaps === 0 && keep && !!fresh && base.length === 3 && new Set(base).size === 3, obs: o3(`编号变化 ${swaps} 次 · 短暂离开后沿用原编号 ${keep ? '✓' : '✗'} · 新人新编号 ${fresh ? '✓' : '✗'}（合成轨迹；真实人物交叉遮挡时仍可能串号）`, `id changes ${swaps} · id kept after brief absence ${keep ? '✓' : '✗'} · newcomer gets new id ${fresh ? '✓' : '✗'} (synthetic tracks; real occlusion/crossing can still swap ids)`, `번호 변경 ${swaps}회 · 잠깐 이탈 후 유지 ${keep ? '✓' : '✗'} · 새 사람 새 번호 ${fresh ? '✓' : '✗'} (합성 궤적; 실제 가림·교차 시 번호가 바뀔 수 있음)`) }; });
   return S;
 }
-const API = { bodyFrame, classifyBody, createBodyMonitor, BSEV, BI, BN, POL, headPose, mar, regions, rgb2hsv, regionScore, decide, createMonitor, SEV, suite };
+const API = { TH, createTracker, bodyFrame, classifyBody, createBodyMonitor, BSEV, BI, BN, POL, headPose, mar, regions, rgb2hsv, regionScore, decide, createMonitor, SEV, suite };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.SHKS = API;
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -2362,7 +2413,7 @@ const D = {
 Object.assign(D, {
   n_home: ['总览', 'Overview', '개요'],
   n_floor: ['定位与姿势', 'Tracking & posture', '위치·자세'],
-  lb_a: ['A · 场景测试 50 项', 'A · 50 scenario tests', 'A · 시나리오 테스트 50건'],
+  lb_a: ['A · 场景测试 51 项', 'A · 51 scenario tests', 'A · 시나리오 테스트 51건'],
   lb_a_p: ['每项有固定随机种子和预期结果：运动伪影、传感器冲突、蓝牙断连、云端断连、隐私载荷、定位围栏、姿势、派单、回放等。', 'Each has a fixed seed and an expected result: motion artifacts, sensor conflict, BLE drop, cloud outage, privacy payload, geofence, posture, dispatch, replay and more.', '각 항목은 고정 시드와 기대 결과를 가집니다: 모션 아티팩트, 센서 충돌, BLE·클라우드 단절, 개인정보, 지오펜스, 자세, 배정, 리플레이 등.'],
   fl_eye: ['定位与姿势', 'TRACKING & POSTURE', '위치·자세'], fl_title: ['每个戴表的人在哪，在做什么', 'Where every wearer is, and what they are doing', '착용자의 위치와 동작'],
   fl_lead: ['UWB 定位把所有佩戴手表的作业者放在同一张平面图上，手表 IMU 识别动作和躯干前倾，视频只提取骨架关键点来交叉验证。进入危险区之前、姿势负荷累积到伤害之前，系统先预警。',
@@ -2405,7 +2456,7 @@ Object.assign(D, {
   n_aimon: ['现场 AI 监控', 'On-site AI monitor', '현장 AI 모니터'],
   am_eye: ['现场 AI 监控器', 'ON-SITE AI MONITOR', '현장 AI 모니터'], am_title: ['入口签到 + 作业监控，一套完整的现场监管', 'Gate check-in + on-duty monitoring: one supervision system', '출입 체크인 + 작업 중 감시: 하나의 현장 감독 체계'],
   am_lead: ['作业前在入口摄像头前站几秒，系统核对在场、眼睛、注意力、安全帽和背心；作业中持续监控闭眼、疲劳、低头、哈欠、离岗和摘帽，并按“提醒→警告→停工请求”逐级升级。放行、停工、报 119 都由人决定，所有事件和决定写入审计日志。现场监控员用假名编号和数字孪生显示多人，不显示摄像头画面。', 'Stand at the gate camera for a few seconds and the system checks presence, eyes, attention, helmet and vest. While you work it keeps watching for eye closure, fatigue, head-down, yawning, leaving the post and helmet removal, escalating from reminder to warning to a stop-work request. Letting someone in, stopping work and calling 119 are human decisions, and every event and decision goes into the audit log. The floor monitor shows many workers as pseudonymous digital-twin dolls, not camera images.', '출입구 카메라 앞에 잠시 서면 재실·눈·주의·안전모·조끼를 확인하고, 작업 중에는 눈 감음·피로·숙임·하품·이탈·안전모 벗음을 지속 감시하여 알림→경고→작업중지 요청으로 단계 상승합니다. 승인·중지·119 신고는 사람이 결정하며 모든 이벤트와 결정은 감사 로그에 기록됩니다. 현장 모니터는 가명 번호와 디지털 트윈으로 표시하며 카메라 영상은 보여주지 않습니다.'],
-  am_m1: ['作业前签到', 'Pre-work check-in', '작업 전 체크인'], am_m1s: ['1 人 · 入口', '1 person · gate', '1명 · 출입구'], am_m2: ['现场监控员', 'Floor monitor', '현장 모니터'], am_m2s: ['多人 · 数字孪生', 'many · digital twin', '여러 명 · 디지털 트윈'],
+  am_m1: ['作业前签到', 'Pre-work check-in', '작업 전 체크인'], am_m1s: ['多人同时 · 入口', 'several at once · gate', '여러 명 동시 · 출입구'], am_m2: ['现场监控员', 'Floor monitor', '현장 모니터'], am_m2s: ['多人 · 数字孪生', 'many · digital twin', '여러 명 · 디지털 트윈'],
   am_badge: ['演示场景（模拟）', 'Demo scene (simulated)', '데모 장면 (모의)'],
   am_badge_cam: ['真实摄像头 · 待开始', 'Real camera · ready', '실제 카메라 · 대기'], am_badge_live: ['真实摄像头 · 仅本机', 'Real camera · local only', '실제 카메라 · 이 기기에서만'],
   am_na2: ['未检测', 'Not assessed', '미검사'],
@@ -3159,7 +3210,7 @@ const AM_POLIDS = ['polHelmet', 'polVest', 'polEyes', 'polAttn', 'amNeedMask', '
 function amPolLoad() { try { const q = JSON.parse(localStorage.getItem('shk-pol') || '{}'); AM_POLIDS.forEach(id => { const el = $('#' + id); if (!el || q[id] == null) return; if (el.type === 'checkbox') el.checked = !!q[id]; else if ([...el.options].some(o => o.value === String(q[id]))) el.value = String(q[id]); }); } catch (_) {} }
 function amPolSave() { try { const q = {}; AM_POLIDS.forEach(id => { const el = $('#' + id); q[id] = el.type === 'checkbox' ? el.checked : el.value; }); localStorage.setItem('shk-pol', JSON.stringify(q)); } catch (_) {} }
 try { const c = JSON.parse(localStorage.getItem('shk-cal') || '{}'); AM.cal = { helmet: c.helmet || null, vest: c.vest || null }; AM.neutral = c.neutral || { pitch: 0, yaw: 0 }; } catch (_) { AM.cal = { helmet: null, vest: null }; AM.neutral = { pitch: 0, yaw: 0 }; }
-AM.mon = null; AM.ev = []; AM.audit = []; AM.lvl = 0; AM.stopReq = null; AM.pending = null; AM.simO = null; AM.scn = 'normal'; AM.calMsg = '';
+AM.mon = null; AM.mons = {}; AM.ppl = {}; AM.monP = null; AM.pendQ = []; AM.nFace = 0; AM.primId = null; AM.trk = SU.createTracker(); AM.ev = []; AM.audit = []; AM.lvl = 0; AM.stopReq = null; AM.pending = null; AM.simO = null; AM.scn = 'normal'; AM.calMsg = '';
 function amSaveCal() { try { localStorage.setItem('shk-cal', JSON.stringify({ helmet: AM.cal.helmet, vest: AM.cal.vest, neutral: AM.neutral })); } catch (_) {} }
 const amBadNames = bad => bad.map(k => t('am_' + k)).join(' · ');
 const amStamp = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };
@@ -3200,8 +3251,12 @@ function drawAm() {
     if (!AM.live) { x.fillStyle = '#0b1220'; x.fillRect(0, 0, w, h); return; }
     const L = AM.lv; x.fillStyle = 'rgba(0,0,0,.55)'; x.fillRect(0, 0, w, 26); x.fillStyle = '#fff'; x.font = '12px ' + mono;
     x.fillText(L.model === 'ready' ? 'LIVE · LOCAL ONLY · FACE MESH' + (L.ear != null ? ' · EAR ' + L.ear.toFixed(2) : '') : 'LIVE · LOCAL ONLY · ' + (L.model === 'loading' ? 'LOADING MODEL…' : 'NO DETECTOR'), 10, 17);
-    if (L.model === 'ready' && L.lm && Date.now() - L.lastFace < 400) { const v = $('#amVid'), vw = v.videoWidth || 1, vh = v.videoHeight || 1, sc = Math.max(w / vw, h / vh), ox = (w - vw * sc) / 2, oy = (h - vh * sc) / 2; x.fillStyle = L.ear != null && L.ear < AM_EAR_CLOSED ? '#ff5a5a' : '#2fd07a'; AM_EYE_L.concat(AM_EYE_R).forEach(i => { const q = L.lm[i]; if (q) { x.beginPath(); x.arc(ox + q.x * vw * sc, oy + q.y * vh * sc, 2.5, 0, 6.29); x.fill(); } }); }
-    amDrawRegions(x, w, h, L, mono); return;
+    if (L.model === 'ready') { const v = $('#amVid'), vw = v.videoWidth || 1, vh = v.videoHeight || 1, sc = Math.max(w / vw, h / vh), ox = (w - vw * sc) / 2, oy = (h - vh * sc) / 2, ps = Object.values(AM.ppl).filter(p => p.lm && Date.now() - p.lastFace < 400);
+      x.fillStyle = 'rgba(0,0,0,.55)'; x.fillRect(w - 86, 0, 86, 26); x.fillStyle = '#fff'; x.textAlign = 'right'; x.fillText(ps.length + ' ' + t('am_pn'), w - 8, 17); x.textAlign = 'left';
+      ps.forEach(p => { const closed = p.ear != null && p.ear < AM_EAR_CLOSED, col = closed ? '#ff5a5a' : '#2fd07a'; let x0 = 1, y0 = 1, x1 = 0, y1 = 0; p.lm.forEach(q => { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); });
+        x.strokeStyle = col; x.lineWidth = 2; x.strokeRect(ox + x0 * vw * sc, oy + y0 * vh * sc, (x1 - x0) * vw * sc, (y1 - y0) * vh * sc); x.fillStyle = col; x.font = 'bold 12px ' + mono; x.fillText(p.id + (p.id === AM.primId ? ' ★' : ''), ox + x0 * vw * sc + 2, Math.max(38, oy + y0 * vh * sc - 18));
+        AM_EYE_L.concat(AM_EYE_R).forEach(i => { const q = p.lm[i]; if (q) { x.beginPath(); x.arc(ox + q.x * vw * sc, oy + q.y * vh * sc, 2.5, 0, 6.29); x.fill(); } }); amDrawRegions(x, w, h, p, mono); }); }
+    return;
   }
   x.fillStyle = '#0b1220'; x.fillRect(0, 0, w, h);
   if (AM.mode === 'site') { drawTwin(x, w, h, mono); return; }
@@ -3226,7 +3281,7 @@ function drawAm() {
 }
 function amDrawRegions(x, w, h, L, mono) {
   if (!(L.lm && L.sm && Date.now() - L.lastFace < 400)) return; const v = $('#amVid'), vw = v.videoWidth || 1, vh = v.videoHeight || 1, sc = Math.max(w / vw, h / vh), ox = (w - vw * sc) / 2, oy = (h - vh * sc) / 2, R = SU.regions(L.lm);
-  [['helmet', R.helmet, L.sm.h, .35], ['vest', R.vest, L.sm.v, .30]].forEach(([k, rc, s, th]) => { const ok = s.inView && s.frac >= th; x.strokeStyle = !s.inView ? '#9aa7ba' : ok ? '#2fd07a' : '#ff5a5a'; x.lineWidth = 2; x.setLineDash([6, 4]); const X0 = ox + rc.x0 * vw * sc, Y0 = oy + rc.y0 * vh * sc; x.strokeRect(X0, Y0, (rc.x1 - rc.x0) * vw * sc, (rc.y1 - rc.y0) * vh * sc); x.setLineDash([]); x.fillStyle = x.strokeStyle; x.font = '11px ' + mono; x.fillText(t('am_' + k) + (s.inView ? ' ' + Math.round(s.frac * 100) + '%' : ' · ' + t('tl_nv')), Math.max(4, X0), Math.max(38, Y0 - 4)); });
+  [['helmet', R.helmet, L.sm.h], ['vest', R.vest, L.sm.v]].forEach(([k, rc, s]) => { const ok = s.inView && s.ok; x.strokeStyle = !s.inView || s.amb ? '#9aa7ba' : ok ? '#2fd07a' : '#ff5a5a'; x.lineWidth = 2; x.setLineDash([6, 4]); const X0 = ox + rc.x0 * vw * sc, Y0 = oy + rc.y0 * vh * sc; x.strokeRect(X0, Y0, (rc.x1 - rc.x0) * vw * sc, (rc.y1 - rc.y0) * vh * sc); x.setLineDash([]); x.fillStyle = x.strokeStyle; x.font = '11px ' + mono; x.fillText(t('am_' + k) + (s.amb ? ' · ' + t('tl_amb') : s.inView ? ' ' + Math.round(s.frac * 100) + '%' + (s.strap ? ' ' + t('tl_strap') : '') : ' · ' + t('tl_nv')), Math.max(4, X0), Math.max(38, Y0 - 4)); });
 }
 function drawAvatar(x, w, h, mono) {
   const o = AM.simO, cx = w / 2, cy = h * .45, R = Math.min(w, h) * .2; x.fillStyle = 'rgba(255,255,255,.7)'; x.font = '11px ' + mono; x.fillText('SIMULATED SCENARIO · ' + t('am_sc_' + AM.scn), 10, 16);
@@ -3291,28 +3346,49 @@ function amEar(lm) {
 function amJudge(n, fc, op) { const face = n > 0 && fc / n >= .6, eyesOk = face && fc > 0 && op / fc >= .6; return { face, eyesOk, pass: face && eyesOk }; }
 const MP_VER = '0.4.1633559619', MP_BASES = ['https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@' + MP_VER + '/', 'https://unpkg.com/@mediapipe/face_mesh@' + MP_VER + '/'], MP_BASE = MP_BASES[0], MP = { err: '', base: '' };
 function mpScript(base) { return new Promise((res, rej) => { if (window.FaceMesh) return res(); const s = document.createElement('script'); s.src = base + 'face_mesh.js'; s.crossOrigin = 'anonymous'; const tm = setTimeout(() => rej(new Error('script timeout: ' + base)), 15000); s.onload = () => { clearTimeout(tm); window.FaceMesh ? res() : rej(new Error('FaceMesh missing after load: ' + base)); }; s.onerror = () => { clearTimeout(tm); rej(new Error('cannot load script: ' + base)); }; document.head.appendChild(s); }); }
-async function mpCreate(onResults) {
-  let last; for (const base of MP_BASES) { try { await mpScript(base); const fm = new window.FaceMesh({ locateFile: f => base + f }); fm.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: .5, minTrackingConfidence: .5 }); fm.onResults(onResults); await Promise.race([fm.initialize(), new Promise((_, rej) => setTimeout(() => rej(new Error('model init timeout: ' + base)), 40000))]); MP.base = base; MP.err = ''; return fm; } catch (e) { last = e; MP.err = String(e && e.message || e).slice(0, 160); console.warn('face mesh', MP.err); } }
+async function mpCreate(onResults, nFaces) {
+  let last; for (const base of MP_BASES) { try { await mpScript(base); const fm = new window.FaceMesh({ locateFile: f => base + f }); fm.setOptions({ maxNumFaces: nFaces || 4, refineLandmarks: true, minDetectionConfidence: .5, minTrackingConfidence: .5 }); fm.onResults(onResults); await Promise.race([fm.initialize(), new Promise((_, rej) => setTimeout(() => rej(new Error('model init timeout: ' + base)), 40000))]); MP.base = base; MP.err = ''; return fm; } catch (e) { last = e; MP.err = String(e && e.message || e).slice(0, 160); console.warn('face mesh', MP.err); } }
   throw last;
 }
 function amLoadModel() {
   const L = AM.lv; if (L.model === 'loading' || L.model === 'ready') return; L.model = 'loading'; renderAm();
   mpCreate(amOnResults).then(fm => { L.fm = fm; L.model = 'ready'; renderAm(); }).catch(() => { L.model = 'fail'; renderAm(); });
 }
-function amSample(lm) {
+function amGrab() {
   const v = $('#amVid'); if (!v || !v.videoWidth) return null; const cv = AM.sc || (AM.sc = document.createElement('canvas')), W = 240, H = Math.max(1, Math.round(240 * v.videoHeight / v.videoWidth)); cv.width = W; cv.height = H;
-  try { const x = cv.getContext('2d', { willReadFrequently: true }); x.drawImage(v, 0, 0, W, H); const d = x.getImageData(0, 0, W, H), img = { data: d.data, w: W, h: H }, R = SU.regions(lm); return { h: SU.regionScore(img, R.helmet, 'helmet', AM.cal.helmet), v: SU.regionScore(img, R.vest, 'vest', AM.cal.vest) }; } catch (_) { return null; }
+  try { const x = cv.getContext('2d', { willReadFrequently: true }); x.drawImage(v, 0, 0, W, H); const d = x.getImageData(0, 0, W, H); return { data: d.data, w: W, h: H }; } catch (_) { return null; }
 }
+function amSample(lm, img) {
+  if (!img) return null;
+  try { const R = SU.regions(lm); return { h: SU.regionScore(img, R.helmet, 'helmet', AM.cal.helmet), v: SU.regionScore(img, R.vest, 'vest', AM.cal.vest) }; } catch (_) { return null; }
+}
+function amNewP(id) { return { id, lm: null, o: null, sm: null, raw: null, ear: null, lastFace: 0, c: { n: 0, fc: 0, op: 0, att: 0, hIn: 0, hel: 0, vIn: 0, ves: 0 } }; }
+function amCtrReset() { Object.values(AM.ppl).forEach(p => { p.c = { n: 0, fc: 0, op: 0, att: 0, hIn: 0, hel: 0, vIn: 0, ves: 0 }; }); }
 function amOnResults(r) {
-  const L = AM.lv, lm = r && r.multiFaceLandmarks && r.multiFaceLandmarks[0], obs = L.ph === 'obs', pol = AM.polC || amPol(), now = performance.now() / 1000;
-  if (obs) L.n++; let o = { t: now, face: false };
-  if (lm && lm.length > 380) {
-    L.lm = lm; L.lastFace = Date.now(); const ear = amEar(lm); L.ear = ear; const raw = SU.headPose(lm), ps = SU.headPose(lm, AM.neutral), mr = SU.mar(lm), sm = amSample(lm); L.raw = raw;
-    const hv = !!(sm && sm.h.inView), vv = !!(sm && sm.v.inView), hOk = hv && sm.h.frac >= .35, vOk = vv && sm.v.frac >= .30;
-    o = { t: now, face: true, ear, pitch: ps.pitch, yaw: ps.yaw, mar: mr, helmet: hv ? hOk : null, vest: vv ? vOk : null }; L.o = o; L.sm = sm;
-    if (obs) { L.fc++; if (ear >= AM_EAR_CLOSED) L.op++; if (Math.abs(ps.yaw) <= pol.yaw && ps.pitch < pol.pitch) L.att++; if (hv) { L.hIn++; if (hOk) L.hel++; } if (vv) { L.vIn++; if (vOk) L.ves++; } }
-  } else { L.lm = null; L.ear = null; L.o = o; L.sm = null; }
-  if (AM.mode === 'watch' && AM.run && AM.mon) amMonPush(o);
+  const L = AM.lv, faces = ((r && r.multiFaceLandmarks) || []).filter(lm => lm && lm.length > 380), obs = L.ph === 'obs', pol = AM.polC || amPol(), now = performance.now() / 1000, nowMs = Date.now();
+  const dets = faces.map(lm => ({ cx: lm[1].x, cy: lm[1].y, size: Math.hypot(lm[234].x - lm[454].x, lm[234].y - lm[454].y) })), tk = AM.trk.update(dets, now);
+  tk.gone.forEach(id => { delete AM.ppl[id]; delete AM.mons[id]; });
+  if (obs) { L.n++; Object.values(AM.ppl).forEach(p => { p.c.n++; }); }
+  const img = faces.length ? amGrab() : null, seen = {}; let prim = null, psz = -1, pfl = null;
+  faces.forEach((lm, j) => {
+    const id = tk.ids[j], p = AM.ppl[id] || (AM.ppl[id] = amNewP(id)); if (obs && p.c.n === 0) p.c.n = 1; seen[id] = 1;
+    const ear = amEar(lm), raw = SU.headPose(lm), ps = SU.headPose(lm, AM.neutral), mr = SU.mar(lm), sm = amSample(lm, img);
+    const hv = !!(sm && sm.h.inView && !sm.h.amb), vv = !!(sm && sm.v.inView), hOk = hv && sm.h.ok, vOk = vv && sm.v.ok;
+    const o = { t: now, face: true, ear, pitch: ps.pitch, yaw: ps.yaw, mar: mr, helmet: hv ? hOk : null, vest: vv ? vOk : null };
+    Object.assign(p, { lm, o, sm, raw, ear, lastFace: nowMs });
+    const fl = { open: ear >= AM_EAR_CLOSED, att: Math.abs(ps.yaw) <= pol.yaw && ps.pitch < pol.pitch, hv, hOk, vv, vOk };
+    if (obs) { const c = p.c; c.fc++; if (fl.open) c.op++; if (fl.att) c.att++; if (hv) { c.hIn++; if (hOk) c.hel++; } if (vv) { c.vIn++; if (vOk) c.ves++; } }
+    if (dets[j].size > psz) { psz = dets[j].size; prim = p; pfl = fl; }
+  });
+  AM.nFace = faces.length;
+  if (prim) { L.lm = prim.lm; L.lastFace = nowMs; L.ear = prim.ear; L.raw = prim.raw; L.o = prim.o; L.sm = prim.sm; AM.primId = prim.id;
+    if (obs) { L.fc++; if (pfl.open) L.op++; if (pfl.att) L.att++; if (pfl.hv) { L.hIn++; if (pfl.hOk) L.hel++; } if (pfl.vv) { L.vIn++; if (pfl.vOk) L.ves++; } } }
+  else { L.lm = null; L.ear = null; L.o = { t: now, face: false }; L.sm = null; AM.primId = null; }
+  if (AM.mode === 'watch' && AM.run && AM.mon) {
+    Object.values(AM.ppl).forEach(p => { const m = AM.mons[p.id] || (AM.mons[p.id] = SU.createMonitor(pol)); amMonPush(m, seen[p.id] ? p.o : { t: now, face: false }, p.id); });
+    amMonPush(AM.mon, faces.length ? { t: now, face: true, ear: .3, pitch: 0, yaw: 0, mar: .1, helmet: null } : { t: now, face: false }, 'scene');
+    AM.monP = prim ? AM.mons[prim.id] : null;
+  }
 }
 function amDetectFrame(f) {
   const L = AM.lv; if (!AM.run || L.model !== 'ready' || L.busy || AM.mode === 'site') return; const now = performance.now(); if (now - L.lastSend < 90) return; L.lastSend = now; L.busy = true;
@@ -3321,21 +3397,22 @@ function amDetectFrame(f) {
 function amLiveStep() {
   const L = AM.lv, now = performance.now(); if (!AM.run || !AM.live || L.model !== 'ready') { if (AM.run && AM.live && L.model === 'idle') amLoadModel(); renderAm(); return; }
   const dwell = +$('#amDwell').value * 1000, recent = Date.now() - L.lastFace < 1200;
-  if (L.ph === 'wait') { if (recent) { L.ph = 'obs'; L.ph0 = now; L.n = 0; L.fc = 0; L.op = 0; L.att = 0; L.hIn = 0; L.hel = 0; L.vIn = 0; L.ves = 0; L.res = null; } }
+  if (L.ph === 'wait') { if (recent) { L.ph = 'obs'; L.ph0 = now; amCtrReset(); L.n = 0; L.fc = 0; L.op = 0; L.att = 0; L.hIn = 0; L.hel = 0; L.vIn = 0; L.ves = 0; L.res = null; } }
   else if (L.ph === 'obs' && now - L.ph0 >= dwell) {
-    const R = SU.decide({ n: L.n, fc: L.fc, op: L.op, att: L.att, hIn: L.hIn, hel: L.hel, vIn: L.vIn, ves: L.ves }, amPol()); L.res = R; L.ph = 'show'; L.ph0 = now;
-    const rc = { n: AM.rec.length + 1, t: new Date().toTimeString().slice(0, 8), id: 'LIVE', pass: R.pass, bad: R.bad.slice(), partial: true, src: 'cam', pol: amPolTag(), items: R.ok }; AM.rec.unshift(rc); AM.pending = rc.pass ? null : rc; amAudit('checkin', { id: 'LIVE', result: rc.pass ? 'pass' : 'fail', detail: R.bad.join('|') });
-    amSetLamp(R.pass ? 'green' : 'red'); amBeep(!R.pass); amSay(R.pass ? t('am_h_pass_r') : t('am_h_fail_e') + ' ' + amBadNames(R.bad));
+    const ppl = Object.values(AM.ppl).filter(p => p.c.n > 0), list = ppl.length ? ppl : [{ id: 'LIVE', c: { n: L.n, fc: L.fc, op: L.op, att: L.att, hIn: L.hIn, hel: L.hel, vIn: L.vIn, ves: L.ves } }], fails = [];
+    list.forEach(p => { const R = SU.decide(p.c, amPol()); const rc = { n: AM.rec.length + 1, t: new Date().toTimeString().slice(0, 8), id: p.id, pass: R.pass, bad: R.bad.slice(), partial: true, src: 'cam', pol: amPolTag(), items: R.ok }; AM.rec.unshift(rc); if (!R.pass) fails.push(rc); p.R = R; amAudit('checkin', { id: p.id, result: rc.pass ? 'pass' : 'fail', detail: R.bad.join('|') }); });
+    const R = (fails.length ? list.find(p => p.R && !p.R.pass) : list[0]).R, allPass = fails.length === 0; L.res = R; L.ph = 'show'; L.ph0 = now; AM.pendQ = fails.slice().reverse(); AM.pending = AM.pendQ[0] || null; AM.lastPpl = list.map(p => ({ id: p.id, pass: p.R.pass, bad: p.R.bad.slice() }));
+    amSetLamp(allPass ? 'green' : 'red'); amBeep(!allPass); amSay(allPass ? t('am_h_pass_r') + ' · ' + list.length + t('am_pn') : t('am_h_fail_e') + ' ' + AM.lastPpl.filter(q => !q.pass).map(q => q.id + ' ' + amBadNames(q.bad)).join('；'));
   } else if (L.ph === 'show' && now - L.ph0 > 3800) { L.ph = 'wait'; L.res = null; }
   renderAm();
 }
 
 /* ---- on-duty monitor, escalation, supervisor actions, audit */
-function amWatchStart() { const p = amPol(); AM.polC = p; AM.mon = SU.createMonitor(p); AM.lvl = 0; AM.stopReq = null; AM.simT0 = performance.now(); AM.simO = null; }
-function amEvent(k) { const ev = { time: amStamp(), type: k, sev: SU.SEV[k], src: AM.src === 'sim' ? 'sim' : 'cam' }; AM.ev.unshift(ev); if (AM.ev.length > 120) AM.ev.pop(); amAudit('event', { id: AM.src === 'sim' ? 'SIM' : 'LIVE', detail: k, result: 'sev' + SU.SEV[k] }); }
-function amMonPush(o) {
-  const fired = AM.mon.push(o); fired.forEach(amEvent); const lv = AM.mon.level();
-  if (lv !== AM.lvl) { const up = lv > AM.lvl; AM.lvl = lv; if (up) { amBeep(lv >= 2); if (lv >= 2) amSay(t('am_w_say' + lv)); amAudit('event', { id: AM.src === 'sim' ? 'SIM' : 'LIVE', detail: 'level_' + lv, result: 'level' }); } if (lv >= 3 && !AM.stopReq) AM.stopReq = { time: amStamp() }; }
+function amWatchStart() { const p = amPol(); AM.polC = p; AM.mon = SU.createMonitor(p); AM.mons = {}; AM.monP = null; AM.trk.reset(); AM.ppl = {}; AM.lvl = 0; AM.stopReq = null; AM.simT0 = performance.now(); AM.simO = null; }
+function amEvent(k, who) { const w = who && who !== 'scene' ? who : '', ev = { time: amStamp(), type: k, sev: SU.SEV[k], src: AM.src === 'sim' ? 'sim' : 'cam', who: w }; AM.ev.unshift(ev); if (AM.ev.length > 120) AM.ev.pop(); amAudit('event', { id: w || (AM.src === 'sim' ? 'SIM' : 'LIVE'), detail: k, result: 'sev' + SU.SEV[k] }); }
+function amMonPush(mon, o, who) {
+  const fired = mon.push(o); fired.forEach(k => amEvent(k, who)); const lv = Math.max(AM.mon ? AM.mon.level() : 0, ...Object.values(AM.mons || {}).map(m => m.level())), tag = who && who !== 'scene' ? who : (AM.src === 'sim' ? 'SIM' : 'LIVE');
+  if (lv !== AM.lvl) { const up = lv > AM.lvl; AM.lvl = lv; if (up) { amBeep(lv >= 2); if (lv >= 2) amSay((tag.charAt(0) === 'P' ? tag + ' · ' : '') + t('am_w_say' + lv)); amAudit('event', { id: tag, detail: 'level_' + lv, result: 'level' }); } if (lv >= 3 && !AM.stopReq) AM.stopReq = { time: amStamp(), who: tag.charAt(0) === 'P' ? tag : '' }; }
 }
 function amSimObs(sc, T) {
   const o = { face: true, ear: (T % 4) < .2 ? .1 : .3, pitch: 5 + 3 * Math.sin(T / 5), yaw: 10 * Math.sin(T / 7), mar: .1, helmet: true };
@@ -3345,13 +3422,13 @@ function amSimObs(sc, T) {
 }
 function amWatchStep() {
   if (!AM.run) { renderAm(); return; }
-  if (AM.src === 'sim') { if (!AM.mon) amWatchStart(); const T = (performance.now() - AM.simT0) / 1000, o = Object.assign({ t: T }, amSimObs(AM.scn, T)); AM.simO = o; amMonPush(o); }
+  if (AM.src === 'sim') { if (!AM.mon) amWatchStart(); const T = (performance.now() - AM.simT0) / 1000, o = Object.assign({ t: T }, amSimObs(AM.scn, T)); AM.simO = o; amMonPush(AM.mon, o, 'SIM'); }
   else if (AM.live && AM.lv.model === 'idle') amLoadModel();
   renderAm();
 }
 function amActDo(a, el) {
   if (a === 'confirm' || a === 'false') { if (!AM.stopReq) return; amAudit('decision', { id: AM.src === 'sim' ? 'SIM' : 'LIVE', detail: a === 'confirm' ? 'stop_confirmed' : 'false_alarm', result: 'human', by: 'supervisor' }); AM.ev.unshift({ time: amStamp(), type: a === 'confirm' ? 'dec_confirm' : 'dec_false', sev: 0, src: 'human', dec: true }); AM.stopReq = null; if (a === 'confirm') amSay(t('dec_confirm')); renderAm(); }
-  else if (a === 'override') { const r = (($('#amReason') || {}).value || '').trim(); if (!r || !AM.pending) { const i = $('#amReason'); if (i) i.focus(); return; } AM.pending.override = { reason: r, time: amStamp() }; amAudit('decision', { id: AM.pending.id, detail: 'override:' + AM.pending.bad.join('|'), result: 'human', by: 'supervisor', reason: r }); AM.ev.unshift({ time: amStamp(), type: 'dec_override', sev: 0, src: 'human', dec: true }); AM.pending = null; renderAm(); }
+  else if (a === 'override') { const r = (($('#amReason') || {}).value || '').trim(); if (!r || !AM.pending) { const i = $('#amReason'); if (i) i.focus(); return; } AM.pending.override = { reason: r, time: amStamp() }; const done = AM.pending; amAudit('decision', { id: AM.pending.id, detail: 'override:' + AM.pending.bad.join('|'), result: 'human', by: 'supervisor', reason: r }); AM.ev.unshift({ time: amStamp(), type: 'dec_override', sev: 0, src: 'human', dec: true }); AM.pendQ = (AM.pendQ || []).filter(q => q !== done); AM.pending = AM.pendQ[0] || null; renderAm(); }
 }
 function amCal(kind) {
   const L = AM.lv, ok = amReal() && AM.live && L.lm && Date.now() - L.lastFace < 800;
@@ -3367,14 +3444,16 @@ function amRenderSup() {
   const sc = $('#amScn'); if (sc && sc.value !== AM.scn) sc.value = AM.scn;
   $('#amCalH').textContent = t('am_cal_h'); $('#amCalV').textContent = t('am_cal_v'); $('#amCalN').textContent = t('am_cal_n'); $('#amCalR').textContent = t('am_cal_r');
   ['amCalH', 'amCalV', 'amCalN'].forEach(id => { $('#' + id).disabled = !(amReal() && AM.live); }); $('#amCalM').textContent = AM.calMsg || (AM.cal.helmet || AM.cal.vest ? '✓ ' : '') + t('am_cal_tip');
-  const o = AM.src === 'sim' ? (AM.mode === 'watch' ? AM.simO : null) : (AM.live ? AM.lv.o : null), S = AM.mon ? AM.mon.state : null, tile = (k, v, cls) => `<div class="${cls || ''}"><b>${t(k)}</b><span>${v}</span></div>`;
+  const o = AM.src === 'sim' ? (AM.mode === 'watch' ? AM.simO : null) : (AM.live ? AM.lv.o : null), S = AM.src === 'cam' ? (AM.monP ? AM.monP.state : null) : (AM.mon ? AM.mon.state : null), tile = (k, v, cls) => `<div class="${cls || ''}"><b>${t(k)}</b><span>${v}</span></div>`;
   if (o && AM.run) { const pol = AM.polC || amPol(), pc = S && S.perclos != null ? Math.round(S.perclos * 100) + '%' : '–', hv = o.helmet == null ? t('tl_nv') : o.helmet ? t('tl_on') : t('tl_off'), vv = o.vest == null ? (AM.src === 'sim' ? '–' : t('tl_nv')) : o.vest ? t('tl_on') : t('tl_off');
     $('#amLive').innerHTML = tile('tl_face', o.face ? t('tl_on') : t('tl_off'), o.face ? 'ok' : 'bad') + (o.face ? tile('tl_ear', o.ear.toFixed(2), o.ear < .2 ? 'bad' : 'ok') + tile('tl_perclos', pc, S && S.perclos != null && S.perclos >= pol.perclos ? 'bad' : '') + tile('tl_pitch', Math.round(o.pitch) + '°', o.pitch >= pol.pitch ? 'warn' : '') + tile('tl_yaw', Math.round(o.yaw) + '°', Math.abs(o.yaw) >= pol.yaw ? 'warn' : '') + tile('tl_mar', o.mar.toFixed(2), o.mar >= .6 ? 'warn' : '') + tile('tl_helmet', hv, o.helmet === false ? 'bad' : o.helmet ? 'ok' : '') + tile('tl_vest', vv, o.vest === false ? 'warn' : o.vest ? 'ok' : '') : ''); } else $('#amLive').innerHTML = '';
+  const pp = $('#amPpl'); if (pp) { const on = amReal() && AM.live && AM.run && AM.mode !== 'site'; pp.hidden = !on; if (on) { const ps = Object.values(AM.ppl).filter(p => Date.now() - p.lastFace < 1500).sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true })), lastR = {}; (AM.lastPpl || []).forEach(q => { lastR[q.id] = q; });
+    pp.innerHTML = `<div class="rc"><b>${t('am_ppl_h')}</b><span class="mono">${ps.length} ${t('am_pn')} · ${t('am_ppl_cal')}</span></div>` + (ps.length ? ps.map(p => { const o = p.o || {}, m = AM.mons[p.id], lv = m ? m.level() : 0, hv = o.helmet == null ? t('tl_nv') : o.helmet ? t('tl_on') : t('tl_off'), vv = o.vest == null ? t('tl_nv') : o.vest ? t('tl_on') : t('tl_off'), q = lastR[p.id], tag = AM.mode === 'watch' ? pill(lv >= 3 ? 'danger' : lv >= 2 ? 'warn' : 'info', t('lv_t' + lv)) : q ? pill(q.pass ? 'ok' : 'danger', q.pass ? t('am_h_pass_r') : amBadNames(q.bad)) : ''; return `<div class="rc"><b>${p.id}</b><span class="mono">EAR ${(o.ear || 0).toFixed(2)} · ${t('tl_helmet')} ${hv} · ${t('tl_vest')} ${vv}</span>${tag}</div>`; }).join('') : `<div class="rc"><span>${t('am_noface')}</span></div>`); } }
   $('#amEsc').hidden = !(AM.mode === 'watch'); $('#amEsc').innerHTML = [0, 1, 2, 3].map(l => `<div class="${AM.run && AM.lvl === l ? 'on l' + l : ''}">${t('lv_t' + l)}</div>`).join('');
-  let act = ''; if (AM.stopReq) act += `<div class="amact" role="alert"><b>⚠ ${t('act_stop_t')}</b><p class="amnote" style="margin:4px 0">${t('act_stop_p')}</p><div class="amrow"><button class="btn sm" data-amact="confirm">${t('act_stop_ok')}</button><button class="btn sm" data-amact="false">${t('act_stop_fa')}</button></div></div>`;
-  if (AM.pending && !AM.pending.override) act += `<div class="amact w"><b>${t('act_ov_t')}: ${amBadNames(AM.pending.bad)}</b><p class="amnote" style="margin:4px 0">${t('act_ov_p')}</p><input type="text" id="amReason" maxlength="120" placeholder="${t('act_ov_ph')}" autocomplete="off"><button class="btn sm" data-amact="override">${t('act_ov_btn')}</button></div>`;
+  let act = ''; if (AM.stopReq) act += `<div class="amact" role="alert"><b>⚠ ${AM.stopReq.who ? AM.stopReq.who + ' · ' : ''}${t('act_stop_t')}</b><p class="amnote" style="margin:4px 0">${t('act_stop_p')}</p><div class="amrow"><button class="btn sm" data-amact="confirm">${t('act_stop_ok')}</button><button class="btn sm" data-amact="false">${t('act_stop_fa')}</button></div></div>`;
+  if (AM.pending && !AM.pending.override) act += `<div class="amact w"><b>${AM.pending.id !== 'LIVE' ? AM.pending.id + ' · ' : ''}${t('act_ov_t')}: ${amBadNames(AM.pending.bad)}</b><p class="amnote" style="margin:4px 0">${t('act_ov_p')}</p><input type="text" id="amReason" maxlength="120" placeholder="${t('act_ov_ph')}" autocomplete="off"><button class="btn sm" data-amact="override">${t('act_ov_btn')}</button></div>`;
   const sig = act.replace(/value="[^"]*"/, '') + '|' + App.lang; if (AM._actSig !== sig) { AM._actSig = sig; $('#amAct').innerHTML = act; }
-  const evh = AM.ev.length ? AM.ev.slice(0, 40).map(e => `<div class="rc"><span class="mono">${e.time.slice(11)} · ${e.src}</span><b>${e.dec ? pill('info', t(e.type)) : pill(e.sev >= 3 ? 'danger' : e.sev === 2 ? 'warn' : 'info', t('ev_' + e.type))}</b></div>`).join('') : `<div class="rc"><span>${t('am_ev_none')}</span></div>`; if (AM._evSig !== evh) { AM._evSig = evh; $('#amEv').innerHTML = evh; }
+  const evh = AM.ev.length ? AM.ev.slice(0, 40).map(e => `<div class="rc"><span class="mono">${e.time.slice(11)} · ${e.src}${e.who ? ' · ' + e.who : ''}</span><b>${e.dec ? pill('info', t(e.type)) : pill(e.sev >= 3 ? 'danger' : e.sev === 2 ? 'warn' : 'info', t('ev_' + e.type))}</b></div>`).join('') : `<div class="rc"><span>${t('am_ev_none')}</span></div>`; if (AM._evSig !== evh) { AM._evSig = evh; $('#amEv').innerHTML = evh; }
   const n = AM.rec.length, ps = AM.rec.filter(r => r.pass).length, ov = AM.rec.filter(r => r.override).length, miss = {}; AM.rec.forEach(r => r.bad.forEach(k => { miss[k] = (miss[k] || 0) + 1; })); const top = Object.entries(miss).sort((a, b) => b[1] - a[1])[0];
   $('#amStats').innerHTML = `<span>${t('st_n')} <b>${n}</b></span><span>${t('st_rate')} <b>${n ? Math.round(ps / n * 100) + '%' : '–'}</b></span><span>${t('st_ov')} <b>${ov}</b></span><span>${t('st_ev')} <b>${AM.ev.filter(e => !e.dec).length}</b></span><span>${t('st_top')} <b>${top ? t('am_' + top[0]) + ' ×' + top[1] : '–'}</b></span>`;
 }
@@ -3462,8 +3541,8 @@ function spReceive(pk) {
   SP.rx = pk; SP.rxT = performance.now();
   let alarm = false, why = '';
   if (pk.ppe) { const miss = SP_PPE.filter(k => pk.ppe[k] < .5 && k !== 'mask'); if (miss.length) { alarm = true; why = t('sp_alert_ppe') + ' ' + miss.map(k => t('sp_' + k)).join(' · '); } }
-  if (pk.face && pk.face.open === false) { if (!SP.closedSince) SP.closedSince = performance.now(); if (performance.now() - SP.closedSince > 1500) { alarm = true; why = t('sp_alert_eye'); } } else SP.closedSince = 0;
-  if (pk.bev && pk.bev.length) { alarm = true; why = t('sp_alert_body') + ' ' + pk.bev.map(k => t('bev_' + k)).join(' · '); }
+  { const fs = pk.faces || (pk.face ? [Object.assign({ id: 'P1' }, pk.face)] : []), nw = performance.now(), cl = [], seen = {}; SP.cs = SP.cs || {}; fs.forEach(f => { seen[f.id] = 1; if (f.open === false) { if (!SP.cs[f.id]) SP.cs[f.id] = nw; if (nw - SP.cs[f.id] > 1500) cl.push(f.id); } else delete SP.cs[f.id]; }); Object.keys(SP.cs).forEach(k => { if (!seen[k]) delete SP.cs[k]; }); if (cl.length) { alarm = true; why = t('sp_alert_eye') + (fs.length > 1 ? ' ' + cl.join(' · ') : ''); } }
+  if (pk.bev && pk.bev.length) { alarm = true; why = t('sp_alert_body') + ' ' + (pk.bevw ? pk.bevw.map(q => (q[0] ? q[0] + ': ' : '') + t('bev_' + q[1])) : pk.bev.map(k => t('bev_' + k))).join(' · '); }
   if (alarm && !SP.alarm) spBeep(); SP.alarm = alarm; SP.why = why;
 }
 const SP_PPE = ['helmet', 'vest', 'mask'];
@@ -3471,13 +3550,18 @@ const spCam = () => SP.src === 'cam' || SP.src === 'body';
 function spBuild() {
   const seq = ++SP.seq;
   if (SP.src === 'body') {
-    if (!SP.live) return null; const f = SP.bf, ok = f && Date.now() - SP.bfT < 600, S = SP.bm ? SP.bm.state : null, r1 = v => v == null ? null : +v.toFixed(1), pk = { v: 1, seq, t: +(Date.now() / 1000).toFixed(2), src: 'cam', mode: 'body', blvl: SP.bLvl, bev: S ? Object.entries(S.cond).filter(([k, c]) => c.fired && c.since != null).map(([k]) => k) : [] };
-    pk.body = ok ? { pts: f.pts.map(p => [+p[0].toFixed(3), +p[1].toFixed(3)]), vis: f.vis.join(''), ang: { trunk: r1(f.ang.trunk), ua: r1(f.ang.ua), la: r1(f.ang.la), knee: r1(f.ang.knee), neck: r1(f.ang.neck) }, act: f.act, still: +(S ? S.stillFor : 0).toFixed(1), speed: +(S ? S.speed : 0).toFixed(2), reba: SP.reba ? { s: SP.reba.final, l: SP.reba.level } : null } : null; return pk;
+    if (!SP.live) return null; const r1 = v => v == null ? null : +v.toFixed(1), pk = { v: 1, seq, t: +(Date.now() / 1000).toFixed(2), src: 'cam', mode: 'body', blvl: SP.bLvl, bev: [], bevw: [] };
+    const mk = b => { const f = b.f, ok = f && Date.now() - b.T < 600, S = b.mon.state, bev = Object.entries(S.cond).filter(([k, c]) => c.fired && c.since != null).map(([k]) => k); bev.forEach(k => pk.bevw.push([b.id, k]));
+      return { id: b.id, lvl: b.lvl, body: ok ? { pts: f.pts.map(p => [+p[0].toFixed(3), +p[1].toFixed(3)]), vis: f.vis.join(''), ang: { trunk: r1(f.ang.trunk), ua: r1(f.ang.ua), la: r1(f.ang.la), knee: r1(f.ang.knee), neck: r1(f.ang.neck) }, act: f.act, still: +S.stillFor.toFixed(1), speed: +S.speed.toFixed(2), reba: b.reba ? { s: b.reba.final, l: b.reba.level } : null } : null }; };
+    pk.people = Object.values(SP.bodies).map(mk).sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true })); pk.n = pk.people.filter(p => p.body).length;
+    if (SP.bm && !pk.bevw.some(q => q[1] === 'absent_body')) Object.entries(SP.bm.state.cond).filter(([k, c]) => c.fired && c.since != null).forEach(([k]) => pk.bevw.push(['', k]));
+    pk.bev = pk.bevw.map(q => q[1]); const pr = pk.people.filter(p => p.body).sort((a, b) => (b.lvl - a.lvl))[0]; pk.body = pr ? pr.body : null; return pk;
   }
   if (spCam()) {
     if (!SP.live) return null; const lm = SP.lm, ok = lm && Date.now() - SP.lastFace < 500, pk = { v: 1, seq, t: +(Date.now() / 1000).toFixed(2), src: 'cam' };
-    if (ok) { const P = i => [+lm[i].x.toFixed(3), +lm[i].y.toFixed(3)]; pk.face = { kp: [1, 33, 133, 362, 263, 61, 291, 152].map(P), ear: +SP.ear.toFixed(2), open: SP.ear >= AM_EAR_CLOSED, roll: +SP.roll.toFixed(1) }; }
-    else pk.face = null; return pk;
+    const mkF = (lmx, ear, roll, id) => { const P = i => [+lmx[i].x.toFixed(3), +lmx[i].y.toFixed(3)]; return { id, kp: [1, 33, 133, 362, 263, 61, 291, 152].map(P), ear: +ear.toFixed(2), open: ear >= AM_EAR_CLOSED, roll: +roll.toFixed(1) }; };
+    const fl = (SP.faces || []).filter(f => Date.now() - f.last < 500); pk.faces = fl.map(f => mkF(f.lm, f.ear, f.roll, f.id)); pk.n = fl.length;
+    if (ok) pk.face = mkF(lm, SP.ear, SP.roll, 'P1'); else pk.face = null; return pk;
   }
   const w = W(App.sel) || App.workers[0], M = w.ME.state, ma = w.mlast; if (!ma) return null;
   const th = M.th != null ? M.th : (ma.thetaHat || 0), sk = MK.skeleton(th, M.label || 'stand', ma.truth.phase), e = w.E.state.ew;
@@ -3500,7 +3584,7 @@ function spRender() {
   $('#spStart').textContent = SP.run ? t('sp_stop') : t('sp_start'); $('#spLNote').textContent = SP.src === 'body' ? t('sp_body_note') : t('sp_l_note');
   const so = $('#spSrc'); if (so.dataset.lang !== String(App.lang)) { so.dataset.lang = String(App.lang); so.innerHTML = `<option value="sim">${t('sp_src_sim')}</option><option value="cam">${t('sp_src_cam')}</option><option value="body">${t('sp_src_body')}</option>`; so.value = SP.src; }
   const tog = $('#spTog'); if (SP.src === 'sim') { tog.hidden = false; tog.innerHTML = [['helmet', 'sp_tog_h'], ['vest', 'sp_tog_v'], ['mask', 'sp_tog_m']].map(([k, l]) => `<button class="btn sm ${SP.off[k] ? 'on' : ''}" data-spt="${k}">${t(l)}</button>`).join(''); } else tog.hidden = true;
-  const ms = $('#spModel'); if (ms) { ms.hidden = !spCam() || !SP.live; ms.innerHTML = SP.model === 'loading' ? t(SP.src === 'body' ? 'sp_model_load_b' : 'sp_model_load') : SP.model === 'fail' ? `⚠ ${t('sp_model_fail')} <span class="mono">[${MP.err}]</span> <button class="btn sm" data-spretry="1">${t('sp_retry')}</button>` : SP.model === 'ready' ? '✓ ' + t(SP.src === 'body' ? 'sp_model_ok_b' : 'sp_model_ok') : ''; }
+  const ms = $('#spModel'); if (ms) { ms.hidden = !spCam() || !SP.live; ms.innerHTML = SP.model === 'loading' ? t(SP.src === 'body' ? 'sp_model_load_b' : 'sp_model_load') : SP.model === 'fail' ? `⚠ ${t('sp_model_fail')} <span class="mono">[${MP.err}]</span> <button class="btn sm" data-spretry="1">${t('sp_retry')}</button>` : SP.model === 'ready' ? '✓ ' + t(SP.src === 'body' ? 'sp_model_ok_b' : 'sp_model_ok') + (SP.src === 'body' && SP.multi === false ? ' · ⚠ ' + t('sp_single_note') : '') : ''; }
   spView(); spDrawCam(); spDrawTwin(); spDrawPanel(); const ak = $('#spAck'); if (ak) ak.textContent = SP.run ? SP.ack : '';
 }
 function spView() {
@@ -3514,9 +3598,11 @@ function spDrawCam() {
   const cv = $('#spCam'); if (!cv || !cv.offsetParent) return; const s = sized(cv); if (!s) return; const { x, w, h } = s, mono = getComputedStyle(document.body).getPropertyValue('--f-mono');
   if (spIsCtl()) { x.fillStyle = '#0d1522'; x.fillRect(0, 0, w, h); x.fillStyle = '#7f8da3'; x.font = '12px ' + mono; x.textAlign = 'center'; x.fillText(t('sp_ctl_nov'), w / 2, h / 2); x.textAlign = 'left'; return; }
   if (spCam()) {
-    if (!SP.live) return; x.fillStyle = 'rgba(0,0,0,.55)'; x.fillRect(0, 0, w, 24); x.fillStyle = '#fff'; x.font = '11px ' + mono; x.fillText('LIVE · LOCAL ONLY · ' + (SP.model === 'ready' ? (SP.src === 'body' ? 'POSE · FULL BODY' : 'FACE MESH') : SP.model === 'loading' ? 'LOADING MODEL…' : 'NO DETECTOR'), 8, 16);
+    if (!SP.live) return; x.fillStyle = 'rgba(0,0,0,.55)'; x.fillRect(0, 0, w, 24); x.fillStyle = '#fff'; x.font = '11px ' + mono; x.fillText('LIVE · LOCAL ONLY · ' + (SP.model === 'ready' ? (SP.src === 'body' ? (SP.multi === false ? 'POSE · SINGLE' : 'POSE · MULTI-PERSON') : 'FACE MESH') : SP.model === 'loading' ? 'LOADING MODEL…' : 'NO DETECTOR'), 8, 16);
     if (SP.src === 'body') { spBodyOverlay(x, w, h); return; }
-    const lm = SP.lm; if (SP.model === 'ready' && lm && Date.now() - SP.lastFace < 400) { const v = $('#spVid'), vw = v.videoWidth || 1, vh = v.videoHeight || 1, sc = Math.max(w / vw, h / vh), ox = (w - vw * sc) / 2, oy = (h - vh * sc) / 2; let x0 = 1, y0 = 1, x1 = 0, y1 = 0; lm.forEach(q => { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); }); const closed = SP.ear < AM_EAR_CLOSED; x.strokeStyle = closed ? '#ff5a5a' : '#2fd07a'; x.lineWidth = 2; x.strokeRect(ox + x0 * vw * sc, oy + y0 * vh * sc, (x1 - x0) * vw * sc, (y1 - y0) * vh * sc); x.fillStyle = x.strokeStyle; AM_EYE_L.concat(AM_EYE_R).forEach(i => { x.beginPath(); x.arc(ox + lm[i].x * vw * sc, oy + lm[i].y * vh * sc, 2.5, 0, 6.29); x.fill(); }); x.font = '12px ' + mono; x.fillText('face · eyes ' + (closed ? 'closed' : 'open'), ox + x0 * vw * sc, Math.max(36, oy + y0 * vh * sc - 6)); }
+    if (SP.model === 'ready') { const v = $('#spVid'), vw = v.videoWidth || 1, vh = v.videoHeight || 1, sc = Math.max(w / vw, h / vh), ox = (w - vw * sc) / 2, oy = (h - vh * sc) / 2, fl = (SP.faces || []).filter(f => Date.now() - f.last < 400);
+      x.fillStyle = 'rgba(0,0,0,.55)'; x.fillRect(w - 80, 0, 80, 24); x.fillStyle = '#fff'; x.font = '11px ' + mono; x.textAlign = 'right'; x.fillText(fl.length + ' ' + t('am_pn'), w - 8, 16); x.textAlign = 'left';
+      fl.forEach(f => { const lm = f.lm; let x0 = 1, y0 = 1, x1 = 0, y1 = 0; lm.forEach(q => { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); }); const closed = f.ear < AM_EAR_CLOSED; x.strokeStyle = closed ? '#ff5a5a' : '#2fd07a'; x.lineWidth = 2; x.strokeRect(ox + x0 * vw * sc, oy + y0 * vh * sc, (x1 - x0) * vw * sc, (y1 - y0) * vh * sc); x.fillStyle = x.strokeStyle; AM_EYE_L.concat(AM_EYE_R).forEach(i => { x.beginPath(); x.arc(ox + lm[i].x * vw * sc, oy + lm[i].y * vh * sc, 2.5, 0, 6.29); x.fill(); }); x.font = '12px ' + mono; x.fillText(f.id + ' · eyes ' + (closed ? 'closed' : 'open'), ox + x0 * vw * sc, Math.max(36, oy + y0 * vh * sc - 6)); }); }
     return;
   }
   const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#c9d3df'); g.addColorStop(1, '#8e9fb2'); x.fillStyle = g; x.fillRect(0, 0, w, h); x.fillStyle = 'rgba(40,55,75,.25)'; x.fillRect(0, h * .78, w, h * .22);
@@ -3537,14 +3623,15 @@ function spDrawTwin() {
   if (!pk) { x.fillStyle = '#7f8da3'; x.font = '13px ' + mono; x.textAlign = 'center'; x.fillText('— waiting for packets —', w / 2, h / 2); x.textAlign = 'left'; return; }
   const col = SP.alarm ? '#ff5a5a' : '#2fd07a';
   if (pk.kp) { const sk = {}; SP_KP.forEach((k, i) => sk[k] = { x: pk.kp[i][0], y: pk.kp[i][1] }); drawSkeleton(cv, sk, col); }
-  else if (pk.mode === 'body') { if (pk.body) spDrawBody(cv, pk.body, col); else { x.fillStyle = '#ff8a8a'; x.font = '13px ' + mono; x.textAlign = 'center'; x.fillText(t('sp_nobody'), w / 2, h / 2); x.textAlign = 'left'; } }
+  else if (pk.mode === 'body') { if (pk.people && pk.people.some(p => p.body)) spDrawBodies(cv, pk.people.filter(p => p.body), col); else { x.fillStyle = '#ff8a8a'; x.font = '13px ' + mono; x.textAlign = 'center'; x.fillText(t('sp_nobody'), w / 2, h / 2); x.textAlign = 'left'; } }
+  else if (pk.faces && pk.faces.length) { const n = pk.faces.length, R = Math.min(w / n / 2.4, h * .28); pk.faces.forEach((f, i) => { const cx = w * (i + .5) / n, cy = h / 2 - 6; x.save(); x.translate(cx, cy); x.rotate(f.roll * Math.PI / 180); x.strokeStyle = f.open ? '#2fd07a' : '#ff5a5a'; x.lineWidth = 3; x.beginPath(); x.ellipse(0, 0, R * .8, R, 0, 0, 6.29); x.stroke(); x.fillStyle = x.strokeStyle; [-1, 1].forEach(sg => { x.beginPath(); if (f.open) x.arc(sg * R * .35, -R * .15, R * .08, 0, 6.29); else { x.moveTo(sg * R * .35 - R * .1, -R * .15); x.lineTo(sg * R * .35 + R * .1, -R * .15); } f.open ? x.fill() : x.stroke(); }); x.beginPath(); x.moveTo(-R * .22, R * .4); x.lineTo(R * .22, R * .4); x.stroke(); x.restore(); x.fillStyle = '#c8d3e3'; x.font = 'bold 12px ' + mono; x.textAlign = 'center'; x.fillText(f.id, cx, cy + R + 18); x.textAlign = 'left'; }); x.fillStyle = '#c8d3e3'; x.font = '12px ' + mono; x.textAlign = 'right'; x.fillText(n + ' ' + t('am_pn'), w - 8, 16); x.textAlign = 'left'; }
   else if (pk.face) { const f = pk.face, cx = w / 2, cy = h / 2, R = Math.min(w, h) * .28; x.save(); x.translate(cx, cy); x.rotate(f.roll * Math.PI / 180); x.strokeStyle = col; x.lineWidth = 3; x.beginPath(); x.ellipse(0, 0, R * .8, R, 0, 0, 6.29); x.stroke(); x.fillStyle = col; [-1, 1].forEach(sg => { x.beginPath(); if (f.open) x.arc(sg * R * .35, -R * .15, R * .08, 0, 6.29); else { x.moveTo(sg * R * .35 - R * .1, -R * .15); x.lineTo(sg * R * .35 + R * .1, -R * .15); } f.open ? x.fill() : x.stroke(); }); x.beginPath(); x.moveTo(-R * .22, R * .4); x.lineTo(R * .22, R * .4); x.stroke(); x.restore(); }
   else { x.fillStyle = '#ff8a8a'; x.font = '13px ' + mono; x.textAlign = 'center'; x.fillText(t('am_noface'), w / 2, h / 2); x.textAlign = 'left'; }
   x.fillStyle = '#7f8da3'; x.font = '11px ' + mono; x.fillText('#' + pk.seq + ' · ' + (pk.id || (pk.mode === 'body' ? 'body' : 'face')), 8, 16);
 }
 function spDrawPanel() {
   const pk = SP.rx, rd = (k, v) => `<div>${t(k)}<b>${v}</b></div>`;
-  $('#spRead').innerHTML = !pk ? '' : pk.kp ? rd('sp_trunk', pk.trunk + '°') + rd('sp_arm', pk.arm + '°') + rd('sp_hr', pk.hr) + rd('sp_bp', pk.bp[0] + '/' + pk.bp[1]) + rd('sp_temp', pk.temp + '°C') : pk.mode === 'body' ? spBodyRead(pk, rd) : pk.face ? rd('sp_roll', pk.face.roll + '°') + rd('sp_eye_s', pk.face.open ? t('sp_open') : t('sp_closed')) + `<div>EAR<b>${pk.face.ear}</b></div>` : rd('sp_eye_s', '–');
+  $('#spRead').innerHTML = !pk ? '' : pk.kp ? rd('sp_trunk', pk.trunk + '°') + rd('sp_arm', pk.arm + '°') + rd('sp_hr', pk.hr) + rd('sp_bp', pk.bp[0] + '/' + pk.bp[1]) + rd('sp_temp', pk.temp + '°C') : pk.mode === 'body' ? spBodyRead(pk, rd) : pk.faces && pk.faces.length ? rd('sp_people', pk.faces.length) + pk.faces.map(f => `<div>${f.id}<b>${f.open ? t('sp_open') : t('sp_closed')} · EAR ${f.ear}</b></div>`).join('') : pk.face ? rd('sp_roll', pk.face.roll + '°') + rd('sp_eye_s', pk.face.open ? t('sp_open') : t('sp_closed')) + `<div>EAR<b>${pk.face.ear}</b></div>` : rd('sp_eye_s', '–');
   const pp = $('#spPpe'); pp.innerHTML = pk && pk.ppe ? SP_PPE.map(k => { const v = pk.ppe[k], ok = v >= .5; return `<div class="row"><span>${t('sp_' + k)}</span><div class="bar"><i style="width:${Math.round(v * 100)}%;background:${ok ? 'var(--safe)' : 'var(--danger)'}"></i></div><b class="mono">${Math.round(v * 100)}%</b></div>`; }).join('') : `<p class="note">${pk ? t('sp_ppe_na') : ''}</p>`;
   $('#spAlert').innerHTML = (SP.alarm ? `<div class="sp-alert" role="alert">⚠ ${SP.why}</div>` : '') + (spIsCtl() && SP.stale ? `<div class="sp-alert" role="alert">⚠ ${t('sp_nosig')}</div>` : '');
   $('#spPkt').textContent = pk ? JSON.stringify(pk) : '';
@@ -3556,11 +3643,29 @@ function spWire() {
 }
 async function spLoadModel() {
   if (SP.model === 'loading' || SP.model === 'ready') return; SP.model = 'loading'; spRender();
-  const on = r => { const lm = r && r.multiFaceLandmarks && r.multiFaceLandmarks[0]; if (lm && lm.length > 380) { SP.lm = lm; SP.lastFace = Date.now(); SP.ear = amEar(lm); SP.roll = Math.atan2(lm[263].y - lm[33].y, lm[263].x - lm[33].x) * 180 / Math.PI; } else { SP.lm = null; } };
-  const onB = r => { const v = $('#spVid'), asp = (v && v.videoWidth && v.videoHeight) ? v.videoWidth / v.videoHeight : 1.78, f = SU.bodyFrame(r && r.poseLandmarks, asp), tn = performance.now() / 1000; SP.bf = f; if (f) SP.bfT = Date.now();
-    if (SP.bm) { SP.bm.push(f, tn).forEach(k => { SP.bEv.unshift({ time: amStamp(), type: k }); if (SP.bEv.length > 60) SP.bEv.pop(); }); SP.bLvl = SP.bm.level(); }
-    SP.reba = f ? RB.reba({ trunk: f.ang.trunk, neck: f.ang.neck || 0, knee: f.ang.knee || 0, ua: f.ang.ua || 0, la: f.ang.la == null ? 80 : f.ang.la, wr: 0, staticHold: SP.bm && SP.bm.state.stillFor >= 60 }) : null; };
-  try { SP.fm = SP.src === 'body' ? await mpCreatePose(onB) : await mpCreate(on); SP.model = 'ready'; } catch (e) { SP.model = 'fail'; } spRender();
+  const on = r => { const fs = ((r && r.multiFaceLandmarks) || []).filter(lm => lm && lm.length > 380), tn = performance.now() / 1000, dets = fs.map(lm => ({ cx: lm[1].x, cy: lm[1].y, size: Math.hypot(lm[234].x - lm[454].x, lm[234].y - lm[454].y) })), tk = SP.ftrk.update(dets, tn), nowMs = Date.now(); SP.faces = fs.map((lm, j) => ({ id: tk.ids[j], lm, ear: amEar(lm), roll: Math.atan2(lm[263].y - lm[33].y, lm[263].x - lm[33].x) * 180 / Math.PI, size: dets[j].size, last: nowMs })).sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+    const big = SP.faces.slice().sort((a, b) => b.size - a.size)[0]; if (big) { SP.lm = big.lm; SP.lastFace = nowMs; SP.ear = big.ear; SP.roll = big.roll; } else { SP.lm = null; } };
+  const onB = r => { const v = $('#spVid'), asp = (v && v.videoWidth && v.videoHeight) ? v.videoWidth / v.videoHeight : 1.78, tn = performance.now() / 1000, nowMs = Date.now();
+    const lms = r && r.poseLandmarksList ? r.poseLandmarksList : (r && r.poseLandmarks ? [r.poseLandmarks] : []), fr = []; lms.forEach(lm => { const f = SU.bodyFrame(lm, asp); if (f) fr.push(f); });
+    const dets = fr.map(f => { const q = [1, 2, 7, 8].map(i => f.pts[i]); return { cx: q.reduce((a, p) => a + p[0], 0) / 4 / asp, cy: q.reduce((a, p) => a + p[1], 0) / 4, size: f.torso || .2 }; }), tk = SP.btrk.update(dets, tn);
+    tk.gone.forEach(id => { delete SP.bodies[id]; });
+    const seen = {}; fr.forEach((f, j) => { const id = tk.ids[j], b = SP.bodies[id] || (SP.bodies[id] = { id, mon: SU.createBodyMonitor(), lvl: 0, f: null, T: 0, reba: null }); seen[id] = 1; b.f = f; b.T = nowMs; b.size = dets[j].size;
+      b.reba = RB.reba({ trunk: f.ang.trunk, neck: f.ang.neck || 0, knee: f.ang.knee || 0, ua: f.ang.ua || 0, la: f.ang.la == null ? 80 : f.ang.la, wr: 0, staticHold: b.mon.state.stillFor >= 60 }); });
+    Object.values(SP.bodies).forEach(b => { b.mon.push(seen[b.id] ? b.f : null, tn).forEach(k => { SP.bEv.unshift({ time: amStamp(), type: k, who: b.id }); if (SP.bEv.length > 60) SP.bEv.pop(); }); b.lvl = b.mon.level(); });
+    if (SP.bm) { SP.bm.push(fr.length ? { pts: [], vis: '', ang: {}, act: 'stand', torso: 1 } : null, tn).forEach(k => { SP.bEv.unshift({ time: amStamp(), type: k, who: '' }); if (SP.bEv.length > 60) SP.bEv.pop(); }); }
+    SP.nBody = fr.length; const prim = Object.values(SP.bodies).filter(b => seen[b.id]).sort((a, b) => b.size - a.size)[0]; SP.bf = prim ? prim.f : null; if (prim) SP.bfT = nowMs; SP.reba = prim ? prim.reba : null;
+    SP.bLvl = Math.max(SP.bm ? SP.bm.level() : 0, ...Object.values(SP.bodies).map(b => b.lvl)); };
+  try { if (SP.src === 'body') { try { SP.fm = await mpCreatePoseMulti(onB); SP.multi = true; } catch (e0) { console.warn('multi pose failed, single fallback', e0); SP.fm = await mpCreatePose(onB); SP.multi = false; } } else SP.fm = await mpCreate(on); SP.model = 'ready'; } catch (e) { SP.model = 'fail'; } spRender();
+}
+const TV_VER = '0.10.14', TV_BASES = ['https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@' + TV_VER + '/', 'https://unpkg.com/@mediapipe/tasks-vision@' + TV_VER + '/'], TV_MODEL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+async function mpCreatePoseMulti(onResults) {
+  let last; for (const base of TV_BASES) { try {
+    const mod = window.__SHK_TV || await Promise.race([import(base + 'vision_bundle.mjs'), new Promise((_, rej) => setTimeout(() => rej(new Error('script timeout: ' + base)), 12000))]);
+    const fs = await mod.FilesetResolver.forVisionTasks(base + 'wasm'), mk = del => mod.PoseLandmarker.createFromOptions(fs, { baseOptions: { modelAssetPath: TV_MODEL, delegate: del }, runningMode: 'VIDEO', numPoses: 4, minPoseDetectionConfidence: .5, minPosePresenceConfidence: .5, minTrackingConfidence: .5 });
+    let pl; try { pl = await mk('GPU'); } catch (e1) { pl = await mk('CPU'); } MP.base = base; MP.err = ''; let lastTs = 0;
+    return { send: async ({ image }) => { const ts = Math.max(performance.now(), lastTs + 1); lastTs = ts; const res = pl.detectForVideo(image, ts); onResults({ poseLandmarksList: (res && res.landmarks) || [] }); } };
+  } catch (e) { last = e; MP.err = String(e && e.message || e).slice(0, 160); console.warn('pose multi', MP.err); } }
+  throw last;
 }
 const PO_VER = '0.5.1675469404', PO_BASES = ['https://cdn.jsdelivr.net/npm/@mediapipe/pose@' + PO_VER + '/', 'https://unpkg.com/@mediapipe/pose@' + PO_VER + '/'];
 function poScript(base) { return new Promise((res, rej) => { if (window.Pose) return res(); const s = document.createElement('script'); s.src = base + 'pose.js'; s.crossOrigin = 'anonymous'; const tm = setTimeout(() => rej(new Error('script timeout: ' + base)), 15000); s.onload = () => { clearTimeout(tm); window.Pose ? res() : rej(new Error('Pose missing after load: ' + base)); }; s.onerror = () => { clearTimeout(tm); rej(new Error('cannot load script: ' + base)); }; document.head.appendChild(s); }); }
@@ -3570,13 +3675,24 @@ async function mpCreatePose(onResults) {
 }
 const SP_BCON = [[1, 2], [1, 7], [2, 8], [7, 8], [1, 3], [3, 5], [2, 4], [4, 6], [7, 9], [9, 11], [8, 10], [10, 12]];
 function spBodyOverlay(x, w, h) {
-  const f = SP.bf; if (!(f && Date.now() - SP.bfT < 500)) return; const v = $('#spVid'), vw = v.videoWidth || 1, vh = v.videoHeight || 1, asp = vw / vh, sc = Math.max(w / vw, h / vh), ox = (w - vw * sc) / 2, oy = (h - vh * sc) / 2, X = p => ox + (p[0] / asp) * vw * sc, Y = p => oy + p[1] * vh * sc, col = SP.bLvl >= 2 ? '#ff5a5a' : '#2fd07a';
-  x.strokeStyle = col; x.lineWidth = 3; SP_BCON.forEach(([a, b]) => { if (f.vis[a] && f.vis[b]) { x.beginPath(); x.moveTo(X(f.pts[a]), Y(f.pts[a])); x.lineTo(X(f.pts[b]), Y(f.pts[b])); x.stroke(); } });
-  x.fillStyle = '#fff'; f.pts.forEach((p, i) => { if (f.vis[i]) { x.beginPath(); x.arc(X(p), Y(p), 3.5, 0, 6.29); x.fill(); } });
-  x.fillStyle = 'rgba(0,0,0,.55)'; x.fillRect(0, h - 26, w, 26); x.fillStyle = '#fff'; x.font = '11px monospace'; x.fillText(t('bact_' + f.act) + ' · ' + Math.round(f.ang.trunk) + '° · REBA ' + (SP.reba ? SP.reba.final : '–'), 8, h - 9);
+  const bs = Object.values(SP.bodies).filter(b => b.f && Date.now() - b.T < 500).sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true })); const v = $('#spVid'), vw = v.videoWidth || 1, vh = v.videoHeight || 1, asp = vw / vh, sc = Math.max(w / vw, h / vh), ox = (w - vw * sc) / 2, oy = (h - vh * sc) / 2, X = p => ox + (p[0] / asp) * vw * sc, Y = p => oy + p[1] * vh * sc;
+  x.fillStyle = 'rgba(0,0,0,.55)'; x.fillRect(w - 80, 0, 80, 24); x.fillStyle = '#fff'; x.font = '11px monospace'; x.textAlign = 'right'; x.fillText(bs.length + ' ' + t('am_pn'), w - 8, 16); x.textAlign = 'left'; if (!bs.length) return;
+  bs.forEach(b => { const f = b.f, col = b.lvl >= 2 ? '#ff5a5a' : '#2fd07a'; x.strokeStyle = col; x.lineWidth = 3; SP_BCON.forEach(([a, c]) => { if (f.vis[a] && f.vis[c]) { x.beginPath(); x.moveTo(X(f.pts[a]), Y(f.pts[a])); x.lineTo(X(f.pts[c]), Y(f.pts[c])); x.stroke(); } });
+    x.fillStyle = '#fff'; f.pts.forEach((p, i) => { if (f.vis[i]) { x.beginPath(); x.arc(X(p), Y(p), 3.5, 0, 6.29); x.fill(); } }); if (f.vis[0]) { x.fillStyle = col; x.font = 'bold 12px monospace'; x.fillText(b.id, X(f.pts[0]) - 8, Math.max(36, Y(f.pts[0]) - 14)); } });
+  x.fillStyle = 'rgba(0,0,0,.55)'; x.fillRect(0, h - 26, w, 26); x.fillStyle = '#fff'; x.font = '11px monospace'; x.fillText(bs.map(b => b.id + ' ' + t('bact_' + b.f.act)).join(' · '), 8, h - 9, w - 16);
 }
-function spBodyRead(pk, rd) { const b = pk.body; if (!b) return rd('bd_act', t('sp_nobody')); const a = b.ang, f = v => v == null ? '–' : Math.round(v) + '°';
+function spBodyRead(pk, rd) { if (pk.people && pk.people.length > 1) return rd('sp_people', pk.n + ' / ' + pk.people.length) + pk.people.map(p => { const b = p.body; return `<div>${p.id}<b>${b ? t('bact_' + b.act) + ' · ' + (b.ang.trunk == null ? '–' : Math.round(b.ang.trunk) + '°') + ' · REBA ' + (b.reba ? b.reba.s : '–') + ' · ' + t('lv_t' + (p.lvl || 0)) : t('sp_nobody')}</b></div>`; }).join(''); const b = pk.body; if (!b) return rd('bd_act', t('sp_nobody')); const a = b.ang, f = v => v == null ? '–' : Math.round(v) + '°';
   return rd('bd_act', t('bact_' + b.act)) + rd('sp_trunk', f(a.trunk)) + rd('sp_arm', f(a.ua)) + rd('bd_knee', f(a.knee)) + rd('bd_still', b.still + ' s') + rd('bd_reba', b.reba ? b.reba.s + ' · ' + t('lv_' + b.reba.l) : '–') + rd('bd_lvl', t('lv_t' + (pk.blvl || 0))); }
+function spDrawBodies(cv, people, col) {
+  const s = sized(cv); if (!s) return; const { x, w, h } = s; let x0 = 9, y0 = 9, x1 = -9, y1 = -9; const V = (b, i) => b.vis[i] === '1' || b.vis[i] === 1;
+  people.forEach(pp => pp.body.pts.forEach((p, i) => { if (V(pp.body, i)) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); } }));
+  const bw = Math.max(.15, x1 - x0), bh = Math.max(.15, y1 - y0), k = Math.min(w * .9 / bw, (h - 40) * .85 / bh), cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, X = p => w / 2 + (p[0] - cx) * k, Y = p => h / 2 + 8 + (p[1] - cy) * k, mono = getComputedStyle(document.body).getPropertyValue('--f-mono');
+  people.forEach(pp => { const b = pp.body, P = b.pts, c = pp.lvl >= 2 ? '#ff5a5a' : '#2fd07a'; x.strokeStyle = c; x.lineWidth = people.length > 1 ? 3 : 4; x.lineCap = 'round'; SP_BCON.forEach(([a, d]) => { if (V(b, a) && V(b, d)) { x.beginPath(); x.moveTo(X(P[a]), Y(P[a])); x.lineTo(X(P[d]), Y(P[d])); x.stroke(); } });
+    if (V(b, 0) && V(b, 1) && V(b, 2)) { x.beginPath(); x.moveTo(X(P[0]), Y(P[0])); x.lineTo((X(P[1]) + X(P[2])) / 2, (Y(P[1]) + Y(P[2])) / 2); x.stroke(); }
+    x.fillStyle = '#fff'; P.forEach((p, i) => { if (V(b, i)) { x.beginPath(); x.arc(X(p), Y(p), i === 0 ? 6 : 4, 0, 6.29); x.fill(); } });
+    if (V(b, 0)) { x.fillStyle = c; x.font = 'bold 12px ' + mono; x.textAlign = 'center'; x.fillText(pp.id, X(P[0]), Y(P[0]) - 14); x.textAlign = 'left'; } });
+  x.fillStyle = '#c8d3e3'; x.font = '12px ' + mono; x.textAlign = 'right'; x.fillText(people.length + ' ' + t('am_pn'), w - 8, 16); x.textAlign = 'left';
+}
 function spDrawBody(cv, b, col) {
   const s = sized(cv); if (!s) return; const { x, w, h } = s, P = b.pts, vis = b.vis; let x0 = 9, y0 = 9, x1 = -9, y1 = -9; P.forEach((p, i) => { if (vis[i] === '1' || vis[i] === 1) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); } });
   const bw = Math.max(.15, x1 - x0), bh = Math.max(.15, y1 - y0), k = Math.min(w * .8 / bw, (h - 40) * .85 / bh), cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, X = p => w / 2 + (p[0] - cx) * k, Y = p => h / 2 + 8 + (p[1] - cy) * k, V = i => vis[i] === '1' || vis[i] === 1;
@@ -3595,14 +3711,14 @@ async function spStartCam() {
     SP.stream = s; const v = $('#spVid'); v.srcObject = s; await v.play(); SP.live = true; SP.req = false; s.getVideoTracks().forEach(tr => tr.addEventListener('ended', () => { if (SP.stream === s) { spStopCam(); spHalt(); SP.err = { name: 'CameraLost' }; spRender(); } })); spFrameLoop(); spLoadModel(); spRender(); return true;
   } catch (e) { SP.live = false; SP.req = false; SP.err = e || { name: 'error' }; spStopCam(); spRender(); return false; }
 }
-function spHalt() { SP.bf = null; SP.bLvl = 0; spNetClose(); SP.cmd = 'OK'; SP.cmdSeen = null; SP.stale = false; SP.run = false; spStopCam(); SP.req = false; SP.rx = null; SP.last = null; SP.alarm = false; SP.ack = ''; SP.tx = []; SP.dn = []; SP.flight = []; if (SP.timer) { clearInterval(SP.timer); SP.timer = null; } spRender(); }
+function spHalt() { SP.bf = null; SP.bLvl = 0; SP.bodies = {}; SP.faces = []; spNetClose(); SP.cmd = 'OK'; SP.cmdSeen = null; SP.stale = false; SP.run = false; spStopCam(); SP.req = false; SP.rx = null; SP.last = null; SP.alarm = false; SP.ack = ''; SP.tx = []; SP.dn = []; SP.flight = []; if (SP.timer) { clearInterval(SP.timer); SP.timer = null; } spRender(); }
 async function spToggle() {
   if (SP.run) { spHalt(); return; }
   if (SP.model === 'fail') SP.model = 'idle';
   if (spRelayOn()) { if (!spNetCheck()) return; }
   if (spCam() && !spIsCtl()) { if (SP.req) return; const ok = await spStartCam(); if (!ok) return; }
   if (spRelayOn()) spNetOpen();
-  if (SP.src === 'body') { SP.bm = SU.createBodyMonitor(); SP.bEv = []; SP.bLvl = 0; SP.bf = null; SP.reba = null; }
+  SP.ftrk.reset(); SP.faces = []; SP.cs = {}; if (SP.src === 'body') { SP.bm = SU.createBodyMonitor({ still: 1e9 }); SP.bEv = []; SP.bLvl = 0; SP.bf = null; SP.reba = null; SP.btrk.reset(); SP.bodies = {}; SP.nBody = 0; }
   SP.run = true; SP.vidBytes = 0; SP.timer = setInterval(spTick, 110); requestAnimationFrame(spWire); spRender();
 }
 
@@ -3639,7 +3755,7 @@ Object.assign(D, {
 
 Object.assign(D, {
   am_m3: ['作业监控', 'On-duty monitor', '작업 중 감시'], am_m3s: ['持续 · 眼睛/姿态/安全帽', 'continuous · eyes/posture/helmet', '지속 · 눈/자세/안전모'],
-  am_attn: ['注意力', 'Attention', '주의'], am_attn_ok: ['正视前方', 'Facing front', '정면 주시'], am_attn_bad: ['低头/转头', 'Head down/away', '숙임/시선 이탈'], am_face: ['未检测到人脸', 'No face', '얼굴 없음'], am_helmet_view: ['安全帽区域不在画面内', 'Helmet area not in view', '안전모 영역이 화면 밖'], am_vest_view: ['背心区域不在画面内', 'Vest area not in view', '조끼 영역이 화면 밖'],
+  am_attn: ['注意力', 'Attention', '주의'], am_attn_ok: ['正视前方', 'Facing front', '정면 주시'], am_attn_bad: ['低头/转头', 'Head down/away', '숙임/시선 이탈'], am_face: ['未检测到人脸', 'No face', '얼굴 없음'], am_helmet_view: ['安全帽区域不在画面内，或与背景同色无法判断（白帽请站在深色/有色背景前）', 'Helmet area not in view, or same colour as the background (stand in front of a darker or coloured background for a white hat)', '안전모 영역이 화면 밖이거나 배경과 같은 색(흰색 안전모는 어둡거나 색 있는 배경 앞에서)'], am_vest_view: ['背心区域不在画面内', 'Vest area not in view', '조끼 영역이 화면 밖'],
   am_h_pass_r: ['签到通过：在场、眼睛、注意力、护具均合格', 'Check-in passed: presence, eyes, attention and PPE all OK', '체크인 통과: 재실·눈·주의·보호구 모두 양호'],
   am_s_part2: ['真实摄像头：人脸/眼睛/头部姿态是模型实测；安全帽和背心是颜色启发式（不是训练好的检测模型）；口罩没有检测。', 'Real camera: face, eyes and head pose are model measurements; helmet and vest use a colour heuristic (not a trained detector); mask is not checked.', '실제 카메라: 얼굴·눈·머리 자세는 모델 측정, 안전모·조끼는 색상 휴리스틱(학습된 검출기 아님), 마스크는 미검사.'],
   am_sup: ['监管体系：策略 · 实时指标 · 升级 · 审计', 'Supervision: policy · live metrics · escalation · audit', '감독 체계: 정책 · 실시간 지표 · 단계 상승 · 감사'],
@@ -3648,7 +3764,7 @@ Object.assign(D, {
   am_scn: ['模拟情景', 'Simulated scenario', '모의 시나리오'], am_sc_normal: ['正常作业', 'Normal work', '정상 작업'], am_sc_drowsy: ['疲劳打瞌睡', 'Drowsy', '졸음'], am_sc_nod: ['长时间低头', 'Head down', '장시간 숙임'], am_sc_helmet: ['中途摘下安全帽', 'Helmet removed', '안전모 벗음'], am_sc_absent: ['离开岗位', 'Leaves post', '자리 이탈'], am_sc_mixed: ['混合（依次出现）', 'Mixed (in turn)', '혼합(순차)'],
   am_cal_h: ['校准安全帽颜色', 'Calibrate helmet colour', '안전모 색상 보정'], am_cal_v: ['校准背心颜色', 'Calibrate vest colour', '조끼 색상 보정'], am_cal_n: ['设为“正前方”', 'Set as “facing front”', '“정면”으로 설정'], am_cal_r: ['清除校准', 'Clear calibration', '보정 초기화'],
   am_cal_ok_h: ['已记录安全帽颜色。', 'Helmet colour saved.', '안전모 색상을 저장했습니다.'], am_cal_ok_v: ['已记录背心颜色。', 'Vest colour saved.', '조끼 색상을 저장했습니다.'], am_cal_ok_n: ['已记录当前头部朝向为正前方。', 'Current head direction saved as facing front.', '현재 머리 방향을 정면으로 저장했습니다.'], am_cal_no: ['需要先打开真实摄像头并让脸和对应区域进入画面。', 'Open the real camera and bring your face and the region into view first.', '실제 카메라를 켜고 얼굴과 해당 영역이 보이게 하세요.'], am_cal_clr: ['校准已清除，恢复默认颜色规则。', 'Calibration cleared; default colour rules restored.', '보정을 지웠습니다. 기본 규칙으로 복귀.'],
-  am_cal_tip: ['先戴好安全帽/背心，再点校准；不校准时只认黄、橙、红、蓝、绿等饱和色，白色帽子或同色背景会判错。', 'Put the helmet/vest on first, then calibrate. Without calibration only saturated yellow, orange, red, blue or green is recognised; white hats and same-colour backgrounds will be misjudged.', '안전모·조끼를 착용한 뒤 보정하세요. 보정하지 않으면 노랑·주황·빨강·파랑·초록 등 채도 높은 색만 인식하며 흰색 모자나 같은 색 배경은 오판합니다.'],
+  am_cal_tip: ['默认能认黄、橙、红、蓝、绿色和白色安全帽，以及荧光黄绿背心/安全带；深色帽（如深蓝棒球帽）、米色羽绒背心不会算。帽子颜色特殊或光线偏色时，戴好后点校准。白帽站在白墙/亮灯前会判“与背景同色，无法判断”，请换深色背景。', 'Recognised by default: yellow, orange, red, blue, green and white helmets, and fluorescent yellow-green vests or harness straps. Dark caps (e.g. a navy baseball cap) and beige puffer vests do not count. For unusual colours or tinted light, wear it and press calibrate. A white helmet in front of a white wall or bright lamp is reported as “same colour as background – cannot tell”; use a darker background.', '노랑·주황·빨강·파랑·초록·흰색 안전모와 형광 황록색 조끼/안전벨트를 기본 인식합니다. 어두운 모자(남색 야구모자)와 베이지 패딩 조끼는 인정하지 않습니다. 색이 특이하거나 조명이 치우치면 착용 후 보정하세요. 흰 벽·밝은 조명 앞의 흰 안전모는 “배경과 같은 색 – 판단 불가”로 표시되니 어두운 배경을 쓰세요.'],
   am_evlog: ['事件与决定（审计日志）', 'Events and decisions (audit log)', '이벤트·결정(감사 로그)'], am_stats: ['统计', 'Statistics', '통계'], am_ev_none: ['还没有事件。', 'No events yet.', '이벤트가 없습니다.'],
   ev_closed_long: ['长时间闭眼', 'Eyes closed too long', '장시간 눈 감음'], ev_drowsy: ['PERCLOS 疲劳', 'PERCLOS fatigue', 'PERCLOS 피로'], ev_head_down: ['持续低头', 'Head down', '장시간 숙임'], ev_away: ['长时间转头', 'Looking away', '시선 이탈'], ev_yawn: ['打哈欠', 'Yawn', '하품'], ev_absent: ['离开岗位', 'Left the post', '자리 이탈'], ev_helmet_off: ['安全帽脱落', 'Helmet off', '안전모 벗음'],
   lv_t0: ['0 正常', '0 Normal', '0 정상'], lv_t1: ['1 提醒', '1 Reminder', '1 알림'], lv_t2: ['2 警告', '2 Warning', '2 경고'], lv_t3: ['3 停工请求', '3 Stop-work request', '3 작업중지 요청'],
@@ -3673,11 +3789,16 @@ Object.assign(D, {
   bev_fall_suspect: ['疑似倒地', 'Suspected fall', '쓰러짐 의심'], bev_still_long: ['长时间完全不动', 'Motionless too long', '장시간 무동작'], bev_bend_long: ['长时间弯腰', 'Bent over too long', '장시간 굽힘'], bev_squat_long: ['长时间下蹲', 'Squatting too long', '장시간 쪼그림'], bev_overhead_long: ['长时间举手过肩', 'Arms overhead too long', '장시간 팔 들기'], bev_absent_body: ['人离开画面', 'Left the frame', '화면 이탈'],
   bact_stand: ['站立', 'Standing', '서 있음'], bact_bend: ['弯腰', 'Bending', '굽힘'], bact_squat: ['下蹲', 'Squatting', '쪼그림'], bact_armsup: ['举手', 'Arms raised', '팔 들기'], bact_lying: ['躺倒', 'Lying', '누움'],
   bd_act: ['动作', 'Action', '동작'], bd_knee: ['膝屈曲', 'Knee flexion', '무릎 굴곡'], bd_still: ['静止时长', 'Stillness', '정지 시간'], bd_reba: ['REBA', 'REBA', 'REBA'], bd_lvl: ['升级等级', 'Escalation', '단계'],
-  sp_body_note: ['全身骨架来自 MediaPipe Pose，在本机运行，只发送关节坐标，不发视频。只用一个摄像头，角度是画面里的二维投影：正对摄像头时前后弯腰会被低估，侧身站立更准。倒地、静止、长时间弯腰/下蹲/举手由规则判断，会有误报（比如蹲下捡东西），所以只升级到“请求”，由人确认。我没有在真人身上验证过。', 'The skeleton comes from MediaPipe Pose, runs on this device and sends joint coordinates only, no video. With a single camera the angles are 2-D projections: bending towards the camera is under-estimated, standing side-on is more accurate. Falls, stillness and long bending, squatting or arms-up are rule-based and can raise false alarms (for example crouching to pick something up), so they only escalate to a request that a person confirms. I have not validated this on real people.', '전신 골격은 MediaPipe Pose로 이 기기에서 실행되며 관절 좌표만 보내고 영상은 보내지 않습니다. 카메라 한 대라 각도는 2차원 투영이며 카메라 쪽으로 굽히면 과소평가되고 옆모습이 더 정확합니다. 쓰러짐·정지·장시간 굽힘/쪼그림/팔 들기는 규칙 기반이라 오경보(예: 물건 줍기)가 있을 수 있어 사람이 확인하는 요청까지만 올립니다. 실제 사람으로 검증하지 않았습니다.']
+  sp_body_note: ['全身骨架来自 MediaPipe Pose，在本机运行，只发送关节坐标，不发视频。最多同时识别 4 人、自动编号（P1、P2…），每个人单独判断；人与人交叉、遮挡时编号可能互换，被挡住的人会丢失。只用一个摄像头，角度是画面里的二维投影：正对摄像头时前后弯腰会被低估，侧身站立更准。倒地、静止、长时间弯腰/下蹲/举手由规则判断，会有误报（比如蹲下捡东西），所以只升级到“请求”，由人确认。我没有在真人身上验证过。', 'The skeleton comes from MediaPipe Pose, runs on this device and sends joint coordinates only, no video. Up to 4 people are tracked at once with auto-numbered ids (P1, P2…), each judged separately; ids can swap when people cross or occlude each other. With a single camera the angles are 2-D projections: bending towards the camera is under-estimated, standing side-on is more accurate. Falls, stillness and long bending, squatting or arms-up are rule-based and can raise false alarms (for example crouching to pick something up), so they only escalate to a request that a person confirms. I have not validated this on real people.', '전신 골격은 MediaPipe Pose로 이 기기에서 실행되며 관절 좌표만 보내고 영상은 보내지 않습니다. 최대 4명을 동시에 인식·번호 부여(P1, P2…)하고 각자 따로 판정하며, 사람이 겹치거나 교차하면 번호가 바뀔 수 있습니다. 카메라 한 대라 각도는 2차원 투영이며 카메라 쪽으로 굽히면 과소평가되고 옆모습이 더 정확합니다. 쓰러짐·정지·장시간 굽힘/쪼그림/팔 들기는 규칙 기반이라 오경보(예: 물건 줍기)가 있을 수 있어 사람이 확인하는 요청까지만 올립니다. 실제 사람으로 검증하지 않았습니다.']
 });
 
+Object.assign(D, {
+  tl_amb: ['与背景同色，无法判断', 'same colour as background – cannot tell', '배경과 같은 색 – 판단 불가'], tl_strap: ['（识别到荧光带）', '(hi-vis straps)', '(형광 띠 인식)'],
+  am_pn: ['人', ' people', '명'], am_ppl_h: ['画面内人员（自动编号）', 'People in frame (auto-numbered)', '화면 속 인원(자동 번호)'], am_ppl_cal: ['★ = 最大人脸，校准以它为准', '★ = largest face, used for calibration', '★ = 가장 큰 얼굴, 보정 기준'],
+  sp_people: ['人数', 'People', '인원'], sp_single_note: ['多人模型未能加载，当前退回单人识别（只认 1 人）', 'Multi-person model failed to load; fell back to single-person (1 person only)', '다인 모델 로드 실패, 단일 인원 모드(1명만 인식)']
+});
 /* ============================================================ relay (real cross-device transport for the split view) */
-SP.bEv = []; SP.bLvl = 0; SP.bf = null; SP.bfT = 0; SP.bm = null; SP.reba = null;
+SP.bEv = []; SP.bLvl = 0; SP.bf = null; SP.bfT = 0; SP.bm = null; SP.reba = null; SP.bodies = {}; SP.faces = []; SP.cs = {}; SP.ftrk = SU.createTracker(); SP.btrk = SU.createTracker({ ttl: 8 }); SP.multi = null; SP.nBody = 0;
 SP.mode = 'browser'; SP.net = { ws: null, st: 'off', role: 'site', room: '', url: '', rtt: null, peers: { site: 0, control: 0 }, err: '', timer: null, ping: null, want: false }; SP.cmd = 'OK';
 try { const q = JSON.parse(localStorage.getItem('shk-relay') || '{}'); SP.net.url = q.url || ''; SP.net.room = q.room || ''; SP.net.role = q.role === 'control' ? 'control' : 'site'; } catch (_) {}
 const spRelayOn = () => SP.mode === 'relay';
@@ -3845,13 +3966,11 @@ function boot() {
   setTimeout(() => { runSuite(); setTimeout(() => { runMc(); setTimeout(runMc2, 200); }, 60); }, 80);
 }
 boot();
-window.__SHK_APP = App;
+window.__SHK_APP = App; window.__SHK_SP = SP; window.__SHK_AM = AM;
 })();
 
 </script>
-
 <script>
 if ('serviceWorker' in navigator && location.protocol === 'https:') { window.addEventListener('load', () => { try { navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (_) {} }); }
 </script>
-</body>
 </html>
